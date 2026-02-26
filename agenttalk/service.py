@@ -15,7 +15,6 @@ from pathlib import Path
 
 import queue
 
-import numpy as np
 import psutil
 import sounddevice as sd
 import uvicorn
