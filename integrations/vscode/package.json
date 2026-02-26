@@ -1,0 +1,125 @@
+{
+  "name": "agenttalk-vscode",
+  "displayName": "AgentTalk — Voice for AI Coding Agents",
+  "description": "Real-time text-to-speech for Roo Code, KiloCode, and GitHub Copilot Chat. Speaks AI responses aloud using a local offline TTS engine.",
+  "version": "1.0.0",
+  "publisher": "agenttalk",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "keywords": [
+    "tts",
+    "text-to-speech",
+    "voice",
+    "roo code",
+    "kilocode",
+    "copilot",
+    "ai",
+    "accessibility"
+  ],
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/omernesh/AgentTalk"
+  },
+  "bugs": {
+    "url": "https://github.com/omernesh/AgentTalk/issues"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "agenttalk.mute",
+        "title": "AgentTalk: Mute",
+        "category": "AgentTalk"
+      },
+      {
+        "command": "agenttalk.unmute",
+        "title": "AgentTalk: Unmute",
+        "category": "AgentTalk"
+      },
+      {
+        "command": "agenttalk.toggleMute",
+        "title": "AgentTalk: Toggle Mute",
+        "category": "AgentTalk"
+      },
+      {
+        "command": "agenttalk.speakSelection",
+        "title": "AgentTalk: Speak Selected Text",
+        "category": "AgentTalk"
+      },
+      {
+        "command": "agenttalk.startService",
+        "title": "AgentTalk: Start Service",
+        "category": "AgentTalk"
+      },
+      {
+        "command": "agenttalk.stopService",
+        "title": "AgentTalk: Stop Service",
+        "category": "AgentTalk"
+      },
+      {
+        "command": "agenttalk.showStatus",
+        "title": "AgentTalk: Show Status",
+        "category": "AgentTalk"
+      }
+    ],
+    "configuration": {
+      "title": "AgentTalk",
+      "properties": {
+        "agenttalk.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable AgentTalk TTS integration"
+        },
+        "agenttalk.port": {
+          "type": "number",
+          "default": 5050,
+          "description": "Port where the AgentTalk service is running"
+        },
+        "agenttalk.autoStart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically start the AgentTalk service if not running (requires agenttalk to be installed and on PATH)"
+        },
+        "agenttalk.healthCheckInterval": {
+          "type": "number",
+          "default": 30,
+          "minimum": 5,
+          "maximum": 300,
+          "description": "How often (in seconds) to check if the AgentTalk service is healthy"
+        }
+      }
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "agenttalk.speakSelection",
+          "when": "editorHasSelection",
+          "group": "agenttalk"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.0.0",
+    "typescript": "^5.3.0"
+  }
+}
