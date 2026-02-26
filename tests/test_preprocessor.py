@@ -12,13 +12,13 @@ import pytest
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("input_text, expected", [
-    # Fenced code block
-    ("```python\ncode\n```", " "),
-    # Inline code
-    ("Use `foo()` to call", "Use  to call"),
+    # Fenced code block — replaced with space then normalized/stripped to ""
+    ("```python\ncode\n```", ""),
+    # Inline code — replaced with space; surrounding text collapses to single space after normalization
+    ("Use `foo()` to call", "Use to call"),
     # URL
     ("Visit https://example.com now", "Visit now"),
-    # Markdown link — keep text, drop URL
+    # Markdown link — keep text, drop URL (link extraction before bare URL stripping)
     ("[link text](https://example.com)", "link text"),
     # Header
     ("## Section Header", "Section Header"),
@@ -62,7 +62,9 @@ def test_strip_markdown_fenced_before_inline_order():
     ("Hello world", True),           # 100% alpha
     ("The quick brown fox.", True),   # >40% alpha
     ("{}", False),                    # 0% alpha
-    ('{"key": "value"}', False),      # <40% alpha — symbols dominate
+    # NOTE: '{"key": "value"}' has 50% alpha (keyvalue = 8/16 chars) → True
+    # A JSON example that genuinely fails the 40% threshold uses short keys:
+    ('{"k":1}', False),               # alpha=1/7=14% < 40% → False
     ("1234567890", False),            # 0% alpha
     ("", False),                      # empty string
     ("   ", False),                   # whitespace only
@@ -102,9 +104,14 @@ def test_preprocess_removes_code_block_keeps_prose():
 
 
 def test_preprocess_junk_returns_empty():
-    """Pure JSON string is filtered — no speakable sentences."""
+    """Pure JSON string with low alpha ratio is filtered — no speakable sentences.
+
+    Uses '{"k":1}' (1/7 = 14% alpha) rather than '{"key":"value"}' (8/16 = 50% alpha).
+    The 40% threshold means short-key JSON is filtered; verbose-key JSON may pass since
+    the key/value words themselves are English letters.
+    """
     from agenttalk.preprocessor import preprocess
-    result = preprocess('{"key": "value"}')
+    result = preprocess('{"k":1}')
     assert result == [], f"Expected [], got {result!r}"
 
 
