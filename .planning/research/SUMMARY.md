@@ -1,15 +1,15 @@
 # Project Research Summary
 
-**Project:** ClaudeTalk
+**Project:** AgentTalk
 **Domain:** Windows local TTS background service — Claude Code voice output companion
 **Researched:** 2026-02-26
 **Confidence:** HIGH
 
 ## Executive Summary
 
-ClaudeTalk is a Windows background service that speaks Claude Code's assistant responses aloud using local TTS. The product sits in a narrow but well-understood niche: it is an event-driven audio relay built around Claude Code's official hook system, not a general-purpose screen reader or voice assistant. The correct architecture is a single Python process with three concurrent components — a pystray icon owning the main thread, a uvicorn/FastAPI HTTP server in a daemon thread, and a TTS worker queue in a second daemon thread — communicating via a bounded `queue.Queue`. This architecture is dictated by platform constraints: the Win32 message loop that pystray needs, the asyncio event loop that uvicorn runs, and the blocking audio playback that sounddevice performs must each be isolated from the others. There are no architectural alternatives; everything else produces deadlocks or crashes.
+AgentTalk is a Windows background service that speaks Claude Code's assistant responses aloud using local TTS. The product sits in a narrow but well-understood niche: it is an event-driven audio relay built around Claude Code's official hook system, not a general-purpose screen reader or voice assistant. The correct architecture is a single Python process with three concurrent components — a pystray icon owning the main thread, a uvicorn/FastAPI HTTP server in a daemon thread, and a TTS worker queue in a second daemon thread — communicating via a bounded `queue.Queue`. This architecture is dictated by platform constraints: the Win32 message loop that pystray needs, the asyncio event loop that uvicorn runs, and the blocking audio playback that sounddevice performs must each be isolated from the others. There are no architectural alternatives; everything else produces deadlocks or crashes.
 
-The recommended TTS engine is kokoro-onnx (0.5.0) over Python 3.11. Kokoro produces high-quality neural speech without cloud dependencies and ships as a pure Python + ONNX package with no system-level espeak-ng install required. The Claude Code `Stop` hook provides `last_assistant_message` directly in its stdin payload — no transcript parsing is needed. Before the text reaches TTS, a preprocessing pipeline must strip code blocks, inline code, URLs, file paths, and markdown formatting; without this filter the tool is actively annoying and unusable as a daily driver. Installation should be `pip install claudetalk` followed by `claudetalk setup` to download model files and register hooks.
+The recommended TTS engine is kokoro-onnx (0.5.0) over Python 3.11. Kokoro produces high-quality neural speech without cloud dependencies and ships as a pure Python + ONNX package with no system-level espeak-ng install required. The Claude Code `Stop` hook provides `last_assistant_message` directly in its stdin payload — no transcript parsing is needed. Before the text reaches TTS, a preprocessing pipeline must strip code blocks, inline code, URLs, file paths, and markdown formatting; without this filter the tool is actively annoying and unusable as a daily driver. Installation should be `pip install agenttalk` followed by `agenttalk setup` to download model files and register hooks.
 
 The primary risks are Windows-specific and well-understood: the pystray/uvicorn thread model must be implemented exactly once and correctly (the wrong threading layout produces silent deadlocks); Kokoro's ONNX model takes 3-8 seconds to load and must be eagerly loaded with a warmup call before the service accepts traffic; and the service must use a PID lock file to prevent port conflicts on crash restart. Piper TTS is explicitly lower priority because its upstream repository was archived in October 2025 and its Windows binary distribution has documented DLL search path issues. Kokoro should be the sole v1 TTS engine.
 
@@ -39,7 +39,7 @@ The feature set splits cleanly into two buckets. The P1 features are non-negotia
 - System tray icon with Quit — Windows UX standard; background services must have a visible presence and an exit path
 - Mute/unmute toggle — first thing users reach for when sound becomes inconvenient; needed at launch
 - SessionStart auto-launch hook — users should never manually start the service
-- `pip install claudetalk` + `claudetalk setup` — single-command install is the only acceptable pattern for the developer target audience
+- `pip install agenttalk` + `agenttalk setup` — single-command install is the only acceptable pattern for the developer target audience
 
 **Should have (competitive differentiators):**
 - Voice switching via slash command — inline voice change without leaving the task
@@ -56,7 +56,7 @@ The feature set splits cleanly into two buckets. The P1 features are non-negotia
 
 ### Architecture Approach
 
-The architecture is a single Python process with three layers coordinated through threading primitives. pystray owns the main thread via `Icon.run(setup=start_background_services)`, where the `setup` callback starts uvicorn in Thread 1 and the TTS worker in Thread 2 as daemon threads. The FastAPI `/speak` endpoint enqueues text into a bounded `queue.Queue(maxsize=3)` and returns immediately. The TTS worker dequeues, sentence-splits, synthesizes sentence-by-sentence with Kokoro, and plays with `sd.play()` + `sd.wait()`. Config is persisted as JSON in `%APPDATA%\ClaudeTalk\config.json`. A PID file at `%APPDATA%\ClaudeTalk\service.pid` enables crash detection and zombie cleanup on restart.
+The architecture is a single Python process with three layers coordinated through threading primitives. pystray owns the main thread via `Icon.run(setup=start_background_services)`, where the `setup` callback starts uvicorn in Thread 1 and the TTS worker in Thread 2 as daemon threads. The FastAPI `/speak` endpoint enqueues text into a bounded `queue.Queue(maxsize=3)` and returns immediately. The TTS worker dequeues, sentence-splits, synthesizes sentence-by-sentence with Kokoro, and plays with `sd.play()` + `sd.wait()`. Config is persisted as JSON in `%APPDATA%\AgentTalk\config.json`. A PID file at `%APPDATA%\AgentTalk\service.pid` enables crash detection and zombie cleanup on restart.
 
 The hook scripts are thin relay scripts that must not import heavy libraries. The Stop hook reads `last_assistant_message` from stdin JSON and fires an HTTP POST to `127.0.0.1:5050/speak`. The SessionStart hook checks the PID file and launches the service with `subprocess.Popen(..., creationflags=subprocess.DETACHED_PROCESS)` if not running. Both hooks must be configured with `"async": true` so they do not block Claude Code's UI.
 
@@ -65,7 +65,7 @@ The hook scripts are thin relay scripts that must not import heavy libraries. Th
 2. FastAPI HTTP server (uvicorn, Thread 1) — accepts `/speak /stop /status /voice` endpoints; enqueues text; returns immediately
 3. TTS worker (Thread 2) — bounded queue consumer; sentence-splits; synthesizes with Kokoro; plays audio sequentially
 4. pystray tray icon (Main Thread) — Win32 message loop; right-click menu for mute/voice/quit; visual service presence
-5. Config store (`%APPDATA%\ClaudeTalk\`) — JSON config + PID file; writable without admin rights
+5. Config store (`%APPDATA%\AgentTalk\`) — JSON config + PID file; writable without admin rights
 6. TTS model adapters (`models/kokoro.py`) — common interface `synthesize(text, voice, speed) -> (np.ndarray, int)`
 
 ### Critical Pitfalls
@@ -142,9 +142,9 @@ Based on the dependency graph in ARCHITECTURE.md and the pitfall-to-phase mappin
 
 ### Phase 5: Configuration, Voice Selection, and Slash Commands
 
-**Rationale:** With the service stable, adding persistent config (voice, speed, enabled state) and slash commands (`/claudetalk:voice`, `/claudetalk:mute`, `/claudetalk:start`, `/claudetalk:stop`) completes the operator interface. This phase is straightforward given the existing HTTP foundation.
+**Rationale:** With the service stable, adding persistent config (voice, speed, enabled state) and slash commands (`/agenttalk:voice`, `/agenttalk:mute`, `/agenttalk:start`, `/agenttalk:stop`) completes the operator interface. This phase is straightforward given the existing HTTP foundation.
 
-**Delivers:** `%APPDATA%\ClaudeTalk\config.json` persistence; `/voice`, `/model`, `/start`, `/stop`, `/status` slash commands; voice switching via `/claudetalk:voice`; current voice shown in tray menu.
+**Delivers:** `%APPDATA%\AgentTalk\config.json` persistence; `/voice`, `/model`, `/start`, `/stop`, `/status` slash commands; voice switching via `/agenttalk:voice`; current voice shown in tray menu.
 
 **Addresses:** Voice switching (P2), model switching foundation (P2), tray voice display (P2)
 
@@ -152,9 +152,9 @@ Based on the dependency graph in ARCHITECTURE.md and the pitfall-to-phase mappin
 
 ### Phase 6: Installation Script and Packaging
 
-**Rationale:** Developer-first installation must be single-command. This phase wires together `pyproject.toml` with console_scripts, the `claudetalk setup` post-install command that downloads model files and registers hooks, and `.gitignore` for ONNX model files. Packaging is deferred until the service is proven stable to avoid premature packaging complexity.
+**Rationale:** Developer-first installation must be single-command. This phase wires together `pyproject.toml` with console_scripts, the `agenttalk setup` post-install command that downloads model files and registers hooks, and `.gitignore` for ONNX model files. Packaging is deferred until the service is proven stable to avoid premature packaging complexity.
 
-**Delivers:** `pip install claudetalk`; `claudetalk setup` command that downloads Kokoro model to `%APPDATA%\ClaudeTalk\models\`, registers hooks in `~/.claude/settings.json`, and creates a desktop shortcut; `pyproject.toml` with pinned dependencies; `.gitignore` for `*.onnx` and `*.bin`.
+**Delivers:** `pip install agenttalk`; `agenttalk setup` command that downloads Kokoro model to `%APPDATA%\AgentTalk\models\`, registers hooks in `~/.claude/settings.json`, and creates a desktop shortcut; `pyproject.toml` with pinned dependencies; `.gitignore` for `*.onnx` and `*.bin`.
 
 **Addresses:** Single-command install (P1)
 
@@ -195,7 +195,7 @@ No phase requires `/gsd:research-phase`. All major unknowns were resolved during
 
 ### Gaps to Address
 
-- **espeakng-loader on clean Windows:** `kokoro-onnx` lists `espeakng-loader` as a dependency, but its behavior on a machine with no system espeak-ng install is not explicitly documented. Validate by running a synthesis test on a clean VM during Phase 1. If it fails, document the manual install step in `claudetalk setup`.
+- **espeakng-loader on clean Windows:** `kokoro-onnx` lists `espeakng-loader` as a dependency, but its behavior on a machine with no system espeak-ng install is not explicitly documented. Validate by running a synthesis test on a clean VM during Phase 1. If it fails, document the manual install step in `agenttalk setup`.
 - **Piper deferred:** Piper TTS is excluded from v1 due to archived upstream and Windows DLL issues. If users request it post-launch, the implementation path is: use the official binary release, bundle DLLs alongside the exe, call via absolute path with `cwd=` set to the binary directory.
 - **WASAPI auto_convert coverage:** The `sd.WasapiSettings(auto_convert=True)` fix addresses sample rate mismatches but does not resolve exclusive mode conflicts. Users with DACs or audiophile setups configured for WASAPI exclusive mode will see `PortAudioError`. The only resolution is a user-side audio setting change; document this prominently in the README.
 - **Hook async behavior on resume:** The `SessionStart` hook with `matcher: "startup"` fires on new sessions. The research confirms it uses `source: "startup"` to distinguish from resume/clear/compact, but the exact matcher syntax in `settings.json` should be verified against the live Claude Code version during Phase 3.

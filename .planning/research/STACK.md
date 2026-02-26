@@ -38,7 +38,7 @@
 |------|---------|-------|
 | venv | Isolated Python environment | `python -m venv .venv` then `.venv\Scripts\activate`. Never install project deps globally. |
 | pythonw.exe | Launch service without a console window | Bundled with CPython on Windows. Replaces `python.exe` in the launch command. Example: `pythonw.exe service.py`. stdin/stdout/stderr are None — log to file. |
-| PyInstaller (optional) | Bundle into a single .exe for distribution | Use `--noconsole --onefile` flags. Suitable for distributing ClaudeTalk without requiring Python installed. Not needed for developer-target installs. |
+| PyInstaller (optional) | Bundle into a single .exe for distribution | Use `--noconsole --onefile` flags. Suitable for distributing AgentTalk without requiring Python installed. Not needed for developer-target installs. |
 
 ---
 
@@ -86,7 +86,7 @@ pip install httpx
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
 | kokoro-onnx | hexgrad/kokoro (PyTorch) | When GPU is available and quality is the only concern. PyTorch variant is heavier (~2GB) and requires CUDA. Not appropriate for a lightweight background service. |
-| kokoro-onnx | piper-tts (as primary) | When RAM is critical (< 100MB target). Piper is faster to load but lower quality. For ClaudeTalk, quality wins. |
+| kokoro-onnx | piper-tts (as primary) | When RAM is critical (< 100MB target). Piper is faster to load but lower quality. For AgentTalk, quality wins. |
 | piper-tts | piper-onnx (thewh1teagle) | `piper-onnx` is an alternative thin wrapper. `piper-tts` is the official package from rhasspy. Use piper-tts as the official path. |
 | sounddevice | pygame.mixer | pygame adds a full game framework just for audio. Adds 10+ MB of unneeded dependencies. sounddevice is purpose-built for numpy arrays. |
 | sounddevice | simpleaudio | simpleaudio's last release was 2021. No longer actively maintained. sounddevice is current and has Windows-native PortAudio wheels. |
@@ -95,7 +95,7 @@ pip install httpx
 | pystray | rumps | macOS-only. Not applicable. |
 | FastAPI | Flask | Flask is sync-first. FastAPI's async BackgroundTasks model fits the fire-and-forget TTS dispatch pattern better. |
 | FastAPI | aiohttp | More verbose. FastAPI provides auto-docs, Pydantic validation, and BackgroundTasks built-in. No reason to use aiohttp here. |
-| uvicorn (single worker) | gunicorn + uvicorn workers | Multi-worker setup is for production web services. ClaudeTalk is a single-user local tool. One uvicorn worker is correct. |
+| uvicorn (single worker) | gunicorn + uvicorn workers | Multi-worker setup is for production web services. AgentTalk is a single-user local tool. One uvicorn worker is correct. |
 | pythonw.exe | PyInstaller --noconsole | Both work. pythonw.exe is simpler for developer installs (no bundling step). Use PyInstaller only for distributing to non-Python users. |
 
 ---
@@ -113,7 +113,7 @@ pip install httpx
 | Python 3.12 or 3.13 with pystray | GIL behavior changes in 3.12+ trigger a documented crash in pystray's `_win32.py`: "PyEval_RestoreThread: the function must be called with the GIL held." No fix released as of 2026-02-26 (pystray 0.19.5, released 2023). | Python 3.11 |
 | threading for pystray icon loop | pystray.Icon must run in the main thread on Windows (Win32 message pump requirement). Running it in a background thread causes the crash above. | Run pystray in main thread; run FastAPI/uvicorn in a daemon thread. |
 | subprocess.Popen without DETACHED_PROCESS | Launching the service from a hook script with bare Popen will tie the service process to the hook's subprocess. When the hook exits, the service may get killed. | Use `subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP` flags. |
-| sys.stdout / sys.stderr in pythonw.exe | pythonw.exe sets sys.stdin, sys.stdout, sys.stderr to None. Any unguarded print() call or library that writes to stdout will crash the process. | Redirect all logging to a file at startup: `logging.basicConfig(filename='claudetalk.log')` |
+| sys.stdout / sys.stderr in pythonw.exe | pythonw.exe sets sys.stdin, sys.stdout, sys.stderr to None. Any unguarded print() call or library that writes to stdout will crash the process. | Redirect all logging to a file at startup: `logging.basicConfig(filename='agenttalk.log')` |
 
 ---
 
@@ -122,7 +122,7 @@ pip install httpx
 **If running as developer install (Python available on PATH):**
 - Launch with `pythonw.exe service.py`
 - No PyInstaller bundling needed
-- Manage model files in a known config directory (e.g., `%APPDATA%\ClaudeTalk\models\`)
+- Manage model files in a known config directory (e.g., `%APPDATA%\AgentTalk\models\`)
 
 **If distributing to non-developer users:**
 - Bundle with PyInstaller: `pyinstaller --noconsole --onefile service.py`
@@ -145,7 +145,7 @@ pip install httpx
 
 ### Relevant Hooks
 
-ClaudeTalk uses two hooks:
+AgentTalk uses two hooks:
 
 | Hook | Event | Purpose | JSON Fields Used |
 |------|-------|---------|-----------------|
@@ -169,7 +169,7 @@ The `SessionStart` hook fires with this JSON on stdin:
 ```
 
 The hook script should:
-1. Check if ClaudeTalk is already running (e.g., check port 8765 or a PID file)
+1. Check if AgentTalk is already running (e.g., check port 8765 or a PID file)
 2. If not running, launch `pythonw.exe service.py` with `DETACHED_PROCESS` flags
 3. Exit 0 immediately (keep hook fast — SessionStart runs on every session)
 
@@ -319,7 +319,7 @@ Any unguarded `print()` or library write to stdout/stderr crashes the process si
 ```python
 import logging, sys, os
 logging.basicConfig(
-    filename=os.path.join(os.path.expanduser('~'), 'AppData', 'Local', 'ClaudeTalk', 'service.log'),
+    filename=os.path.join(os.path.expanduser('~'), 'AppData', 'Local', 'AgentTalk', 'service.log'),
     level=logging.INFO
 )
 ```
@@ -384,5 +384,5 @@ def port_in_use(port):
 
 ---
 
-*Stack research for: ClaudeTalk — Windows local TTS background service*
+*Stack research for: AgentTalk — Windows local TTS background service*
 *Researched: 2026-02-26*

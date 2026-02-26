@@ -1,8 +1,8 @@
-# Roadmap: ClaudeTalk
+# Roadmap: AgentTalk
 
 ## Overview
 
-ClaudeTalk ships in six phases ordered by risk: validate the Windows threading model and Kokoro audio stack first, wire up the HTTP layer and text pipeline second, integrate Claude Code hooks for end-to-end speech third, add the system tray UX and audio enhancements fourth, surface configuration and slash commands fifth, and package for single-command installation last. Each phase delivers a coherent, testable capability that the next phase builds on.
+AgentTalk ships in six phases ordered by risk: validate the Windows threading model and Kokoro audio stack first, wire up the HTTP layer and text pipeline second, integrate Claude Code hooks for end-to-end speech third, add the system tray UX and audio enhancements fourth, surface configuration and slash commands fifth, and package for single-command installation last. Each phase delivers a coherent, testable capability that the next phase builds on.
 
 ## Phases
 
@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 3: Claude Code Hook Integration** - Connect Stop and SessionStart hooks for end-to-end speech from Claude Code output
 - [ ] **Phase 4: System Tray UX, Audio Ducking, and Cues** - Add the pystray tray icon, mute toggle, speaking indicator, audio ducking, and pre/post audio cues
 - [ ] **Phase 5: Configuration, Voice/Model Switching, and Slash Commands** - Persist settings in APPDATA, expose all slash commands, enable voice and model switching
-- [ ] **Phase 6: Installation Script, Packaging, and Documentation** - Ship pip install claudetalk, claudetalk setup, desktop shortcut, and complete README
+- [ ] **Phase 6: Installation Script, Packaging, and Documentation** - Ship pip install agenttalk, agenttalk setup, desktop shortcut, and complete README
 
 ## Phase Details
 
@@ -28,7 +28,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Success Criteria** (what must be TRUE):
   1. Running `pythonw.exe service.py` produces no console window and audio plays through speakers within 10 seconds
   2. A second launch of the service detects the PID file and exits cleanly without port conflicts or zombie processes
-  3. `%APPDATA%\ClaudeTalk\claudetalk.log` contains startup progress entries including model load and warmup completion
+  3. `%APPDATA%\AgentTalk\agenttalk.log` contains startup progress entries including model load and warmup completion
   4. The `/health` endpoint returns 503 before Kokoro warmup completes and 200 after
   5. Any startup exception is caught, logged to file, and does not produce a silent crash
 **Plans**: TBD
@@ -61,7 +61,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Depends on**: Phase 3
 **Requirements**: SVC-04, TRAY-01, TRAY-02, TRAY-03, TRAY-04, TRAY-05, TRAY-06, AUDIO-07, CUE-01, CUE-02, CUE-03, CUE-04
 **Success Criteria** (what must be TRUE):
-  1. The ClaudeTalk icon appears in the Windows system tray when the service is running and disappears after Quit
+  1. The AgentTalk icon appears in the Windows system tray when the service is running and disappears after Quit
   2. Right-clicking the tray icon shows Mute/Unmute (with checkmark), a voice submenu, the current active voice name, and Quit
   3. The tray icon changes appearance while TTS is actively speaking and returns to the default when playback finishes
   4. Music playing in Spotify or a browser drops to 50% volume when TTS speaks and restores to the original level when TTS finishes
@@ -73,23 +73,23 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Depends on**: Phase 4
 **Requirements**: CMD-01, CMD-02, CMD-03, CMD-04, CFG-01, CFG-02, CFG-03, TTS-04
 **Success Criteria** (what must be TRUE):
-  1. Running `/claudetalk:stop` from Claude Code kills the service and silences any current audio
-  2. Running `/claudetalk:voice af_bella` switches the active Kokoro voice and the next TTS utterance uses that voice
-  3. Running `/claudetalk:model piper` switches the TTS engine and the next utterance is synthesized with Piper
+  1. Running `/agenttalk:stop` from Claude Code kills the service and silences any current audio
+  2. Running `/agenttalk:voice af_bella` switches the active Kokoro voice and the next TTS utterance uses that voice
+  3. Running `/agenttalk:model piper` switches the TTS engine and the next utterance is synthesized with Piper
   4. After changing the voice via slash command and restarting the service, the same voice is active (setting persisted in config.json)
-  5. `%APPDATA%\ClaudeTalk\config.json` exists and contains all persisted settings: voice, speed, volume, model, mute state, cue paths
+  5. `%APPDATA%\AgentTalk\config.json` exists and contains all persisted settings: voice, speed, volume, model, mute state, cue paths
 **Plans**: TBD
 
 ### Phase 6: Installation Script, Packaging, and Documentation
-**Goal**: A developer on a clean Windows 11 machine runs two commands (pip install claudetalk, claudetalk setup) and ClaudeTalk is fully installed with hooks registered, model downloaded, desktop shortcut created, and no admin rights required
+**Goal**: A developer on a clean Windows 11 machine runs two commands (pip install agenttalk, agenttalk setup) and AgentTalk is fully installed with hooks registered, model downloaded, desktop shortcut created, and no admin rights required
 **Depends on**: Phase 5
 **Requirements**: INST-01, INST-02, INST-03, INST-04, INST-05, INST-06, DOC-01, DOC-02, DOC-03, DOC-04, DOC-05
 **Success Criteria** (what must be TRUE):
-  1. `pip install claudetalk` succeeds on Python 3.11 on a clean Windows 11 machine without admin rights
-  2. `claudetalk setup` downloads the Kokoro ONNX model to `%APPDATA%\ClaudeTalk\models\` with a visible progress bar and registers hooks in `~/.claude/settings.json` without overwriting existing hooks
+  1. `pip install agenttalk` succeeds on Python 3.11 on a clean Windows 11 machine without admin rights
+  2. `agenttalk setup` downloads the Kokoro ONNX model to `%APPDATA%\AgentTalk\models\` with a visible progress bar and registers hooks in `~/.claude/settings.json` without overwriting existing hooks
   3. A desktop shortcut (.lnk) exists after setup and double-clicking it launches the service
   4. The README covers installation, quickstart, available voices, all slash commands, tray menu usage, and a troubleshooting section covering WASAPI exclusive mode, Kokoro download issues, Python version requirements, and hook verification
-  5. The repository is publicly accessible at github.com/omern/ClaudeTalk under the MIT license
+  5. The repository is publicly accessible at github.com/omern/AgentTalk under the MIT license
 **Plans**: TBD
 
 ## Progress

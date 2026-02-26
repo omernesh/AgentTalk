@@ -244,13 +244,13 @@ Windows console code page defaults differ from Linux/macOS. Claude Code sends th
 ### Pitfall 9: Service Leaves Zombie Processes on Crash or Restart
 
 **What goes wrong:**
-When the ClaudeTalk service is killed (Task Manager, power cycle, or crash), the `pythonw.exe` process may leave orphaned child processes — particularly if the service spawned subprocesses (e.g., for Piper binary invocation). On restart, the new service instance tries to bind port 8765, gets `[WinError 10048] Only one usage of each socket address is normally permitted`, and fails to start.
+When the AgentTalk service is killed (Task Manager, power cycle, or crash), the `pythonw.exe` process may leave orphaned child processes — particularly if the service spawned subprocesses (e.g., for Piper binary invocation). On restart, the new service instance tries to bind port 8765, gets `[WinError 10048] Only one usage of each socket address is normally permitted`, and fails to start.
 
 **Why it happens:**
 Windows does not have the Unix process group / SIGKILL + reap behavior. Subprocesses started with `subprocess.Popen()` without explicit cleanup are not killed when the parent terminates abnormally. Port binding failures are the most common symptom — the old process holds the socket.
 
 **How to avoid:**
-- Write the service PID to a lock file on startup: `~/.claudetalk/service.pid`.
+- Write the service PID to a lock file on startup: `~/.agenttalk/service.pid`.
 - On startup, read the lock file, check if the PID is still running, and kill it if so before rebinding.
 - Use `subprocess.Popen(..., creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)` for any child processes so they can be targeted for kill independently.
 - Register a `signal.signal(signal.SIGTERM, graceful_shutdown)` handler and an `atexit.register(cleanup)` function.
@@ -259,7 +259,7 @@ Windows does not have the Unix process group / SIGKILL + reap behavior. Subproce
 **Warning signs:**
 - Service fails to start with `[WinError 10048] address already in use`
 - Multiple `python.exe` or `pythonw.exe` processes in Task Manager after a crash
-- `/claudetalk:start` slash command appears to succeed but service is unreachable
+- `/agenttalk:start` slash command appears to succeed but service is unreachable
 
 **Phase to address:** Phase 1 (Service skeleton), Phase 3 (Error recovery)
 
@@ -326,7 +326,7 @@ Running the service with `pythonw.exe` hides the console window (desired behavio
   ```python
   import logging
   logging.basicConfig(
-      filename=Path.home() / '.claudetalk' / 'service.log',
+      filename=Path.home() / '.agenttalk' / 'service.log',
       level=logging.DEBUG,
       format='%(asctime)s %(levelname)s %(message)s'
   )
@@ -338,7 +338,7 @@ Running the service with `pythonw.exe` hides the console window (desired behavio
 
 **Warning signs:**
 - Service disappears silently with no error
-- System tray icon never appears after `/claudetalk:start`
+- System tray icon never appears after `/agenttalk:start`
 - Log file is empty or does not exist (logging not configured before the crash point)
 
 **Phase to address:** Phase 1 (Service skeleton — logging must be the first thing initialized)
@@ -355,8 +355,8 @@ Windows PowerShell's default execution policy blocks unsigned scripts. Claude Co
 
 **How to avoid:**
 - Write the Claude Code hook as a Python script (`hook.py`), not a PowerShell script.
-- Invoke it via: `"command": "python \"%USERPROFILE%\\.claude\\hooks\\claudetalk-hook.py\""`.
-- Alternatively, use `pythonw.exe` to avoid any console flicker: `"command": "pythonw \"%USERPROFILE%\\.claude\\hooks\\claudetalk-hook.py\""`.
+- Invoke it via: `"command": "python \"%USERPROFILE%\\.claude\\hooks\\agenttalk-hook.py\""`.
+- Alternatively, use `pythonw.exe` to avoid any console flicker: `"command": "pythonw \"%USERPROFILE%\\.claude\\hooks\\agenttalk-hook.py\""`.
 - Never require the user to change PowerShell execution policy. Use Python hooks universally.
 - Test the hook command directly in cmd.exe before wiring into Claude Code settings.
 
@@ -390,7 +390,7 @@ Windows PowerShell's default execution policy blocks unsigned scripts. Claude Co
 | Claude Code `Stop` hook | Using `PostToolUse` to intercept assistant text | Use `Stop` hook — it fires when Claude finishes and provides `last_assistant_message` directly |
 | Claude Code `SessionStart` hook | Starting service synchronously (blocks Claude Code startup) | Use `async: true` on the hook or start service as a detached subprocess |
 | sounddevice on Windows | Using `sd.play(audio, 24000)` without `auto_convert` | Use `sd.play(audio, 24000, extra_settings=sd.WasapiSettings(auto_convert=True))` |
-| kokoro-onnx model download | Downloading at runtime on every install | Bundle model download in install script; check `~/.claudetalk/models/` before downloading |
+| kokoro-onnx model download | Downloading at runtime on every install | Bundle model download in install script; check `~/.agenttalk/models/` before downloading |
 | piper binary | Adding only `piper.exe` to PATH | Bundle piper with ALL its DLLs in the same directory; call via absolute path |
 | Hook JSON output | Mixing print() and JSON output | Hook stdout must contain ONLY the JSON object; any other print breaks parsing |
 | uvicorn shutdown | `sys.exit()` inside tray menu callback | Set `server.should_exit = True` on the uvicorn Server object to trigger graceful shutdown |
@@ -425,7 +425,7 @@ Windows PowerShell's default execution policy blocks unsigned scripts. Claude Co
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
 | Speaking code blocks verbatim | Users hear "backtick backtick backtick python" for every code example | Strip all code blocks before TTS; replace with "[code omitted]" or nothing |
-| No way to interrupt speech mid-sentence | User must wait for a 30-second response to finish before terminal is usable | Implement `/claudetalk:stop-speech` or kill current `sd.play()` on new request |
+| No way to interrupt speech mid-sentence | User must wait for a 30-second response to finish before terminal is usable | Implement `/agenttalk:stop-speech` or kill current `sd.play()` on new request |
 | Silent crash with no feedback | User doesn't know service is dead; keeps sending messages | Show Windows notification balloon on crash; write to log; tray icon changes to red |
 | Slow startup blocks Claude Code session | Claude Code waits for `SessionStart` hook if not async | Make SessionStart hook fire-and-forget (`async: true`); service starts independently |
 | Speaking every tool result/error | Noisy: every `git push` failure spoken aloud | Only `Stop` hook provides assistant prose; never speak PostToolUse content for TTS |
@@ -472,7 +472,7 @@ Windows PowerShell's default execution policy blocks unsigned scripts. Claude Co
 | Wrong hook event type | Phase 2 (hook integration) | Stop hook fires and `last_assistant_message` is non-empty for assistant responses |
 | Windows stdin encoding | Phase 2 (hook integration) | Hook handles message with em dash and Unicode; no UnicodeDecodeError |
 | Zombie processes on crash | Phase 1 + Phase 3 (error recovery) | Kill process, restart; service binds port on second attempt |
-| No logging in pythonw.exe | Phase 1 (service skeleton) | Log file created at `~/.claudetalk/service.log`; crash reason visible |
+| No logging in pythonw.exe | Phase 1 (service skeleton) | Log file created at `~/.agenttalk/service.log`; crash reason visible |
 | PowerShell execution policy | Phase 2 (hook integration) | Hook is Python script, not .ps1; executes without policy change |
 | Text junk in TTS | Phase 2 (text preprocessing) | Real Claude Code response with code block: only prose is spoken |
 
@@ -498,5 +498,5 @@ Windows PowerShell's default execution policy blocks unsigned scripts. Claude Co
 - [Python subprocess CREATE_NO_WINDOW — pythonw.exe background process](https://medium.com/@maheshwar.ramkrushna/running-python-scripts-as-background-processes-using-subprocess-pythonw-exe-and-other-methods-ed5316dd5256) — MEDIUM confidence
 
 ---
-*Pitfalls research for: Windows Python TTS background service (ClaudeTalk)*
+*Pitfalls research for: Windows Python TTS background service (AgentTalk)*
 *Researched: 2026-02-26*

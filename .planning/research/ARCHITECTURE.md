@@ -20,7 +20,7 @@ Claude Code (Terminal)
        | HTTP POST /speak  { "text": "..." }
        v
 +--------------------------------------------------+
-|           ClaudeTalk Service (single process)    |
+|           AgentTalk Service (single process)    |
 |                                                  |
 |  Main Thread                                     |
 |  +-----------+                                   |
@@ -49,8 +49,8 @@ Claude Code (Terminal)
 |  |     sounddevice.wait()            |           |
 |  +-----------------------------------+           |
 |                                                  |
-|  Config: %APPDATA%/ClaudeTalk/config.json        |
-|  PID file: %APPDATA%/ClaudeTalk/service.pid      |
+|  Config: %APPDATA%/AgentTalk/config.json        |
+|  PID file: %APPDATA%/AgentTalk/service.pid      |
 +--------------------------------------------------+
 ```
 
@@ -58,11 +58,11 @@ Claude Code (Terminal)
 
 | Component | Responsibility | Communicates With |
 |-----------|---------------|-------------------|
-| `speak.py` hook script | Reads stdin JSON from Claude Code, extracts `last_assistant_message`, fires HTTP POST | HTTP → ClaudeTalk service |
+| `speak.py` hook script | Reads stdin JSON from Claude Code, extracts `last_assistant_message`, fires HTTP POST | HTTP → AgentTalk service |
 | FastAPI HTTP server (uvicorn, Thread 1) | Accepts `/speak` POST, validates, enqueues text; accepts `/stop` to initiate shutdown | queue.Queue → TTS Worker; pystray via event |
 | TTS Worker (Thread 2) | Dequeues text, splits to sentences, calls Kokoro, plays audio synchronously | kokoro-onnx, sounddevice |
 | pystray Icon (Main Thread) | Renders system tray icon; provides right-click menu for stop/status; owns the Windows message loop | Calls uvicorn shutdown on "Quit" click |
-| Config store | Persists voice, model, speed between restarts | Read on startup; written on `/claudetalk:voice` and `/claudetalk:model` commands |
+| Config store | Persists voice, model, speed between restarts | Read on startup; written on `/agenttalk:voice` and `/agenttalk:model` commands |
 | PID file | Tracks running process for stop commands | Written on startup, deleted on shutdown |
 
 ---
@@ -103,10 +103,10 @@ def start_background_services(icon):
 def main():
     icon_image = Image.open("icon.png")
     menu = pystray.Menu(
-        pystray.MenuItem("Stop ClaudeTalk", stop_service),
+        pystray.MenuItem("Stop AgentTalk", stop_service),
         pystray.MenuItem("Quit", quit_app),
     )
-    icon = pystray.Icon("claudetalk", icon_image, "ClaudeTalk", menu)
+    icon = pystray.Icon("agenttalk", icon_image, "AgentTalk", menu)
     icon.run(setup=start_background_services)  # blocks main thread
 ```
 
@@ -147,7 +147,7 @@ subprocess.Popen(
 
 ```
 On startup:
-    pid_path = Path(os.environ["APPDATA"]) / "ClaudeTalk" / "service.pid"
+    pid_path = Path(os.environ["APPDATA"]) / "AgentTalk" / "service.pid"
     pid_path.parent.mkdir(parents=True, exist_ok=True)
     pid_path.write_text(str(os.getpid()))
 
@@ -155,7 +155,7 @@ On shutdown (lifespan event or signal):
     pid_path.unlink(missing_ok=True)
 ```
 
-The stop slash command or `/claudetalk:stop` hook reads the PID file and calls `os.kill(pid, signal.SIGTERM)` or falls back to `psutil.Process(pid).terminate()` on Windows where SIGTERM semantics differ.
+The stop slash command or `/agenttalk:stop` hook reads the PID file and calls `os.kill(pid, signal.SIGTERM)` or falls back to `psutil.Process(pid).terminate()` on Windows where SIGTERM semantics differ.
 
 ---
 
@@ -241,11 +241,11 @@ This is a v1.1 enhancement — implement only if users report frustration with a
 
 ### Which Hooks Fire
 
-| Hook | When | Use for ClaudeTalk |
+| Hook | When | Use for AgentTalk |
 |------|------|--------------------|
 | `Stop` | When main Claude agent finishes responding | PRIMARY: speak the assistant's complete response |
-| `SessionStart` | When Claude Code starts a session | Start the ClaudeTalk service if not running |
-| `SessionEnd` | When session ends | Optional: stop ClaudeTalk service |
+| `SessionStart` | When Claude Code starts a session | Start the AgentTalk service if not running |
+| `SessionEnd` | When session ends | Optional: stop AgentTalk service |
 
 **Do NOT use `PostToolUse`** for speaking: PostToolUse fires after every tool call (file reads, web searches, bash commands) — not after the final assistant text response. That produces excessive, unwanted speech.
 
@@ -263,9 +263,9 @@ This is a v1.1 enhancement — implement only if users report frustration with a
 }
 ```
 
-**`last_assistant_message`** is the field to POST to the service. It is the final text response without tool outputs or metadata. This is exactly what ClaudeTalk needs — no transcript parsing required.
+**`last_assistant_message`** is the field to POST to the service. It is the final text response without tool outputs or metadata. This is exactly what AgentTalk needs — no transcript parsing required.
 
-**`stop_hook_active`**: When `true`, Claude is already continuing due to a previous Stop hook's `decision: "block"`. ClaudeTalk should check this and still speak even when it's `true`, but should NEVER return `decision: "block"` (that would create infinite continuation loops).
+**`stop_hook_active`**: When `true`, Claude is already continuing due to a previous Stop hook's `decision: "block"`. AgentTalk should check this and still speak even when it's `true`, but should NEVER return `decision: "block"` (that would create infinite continuation loops).
 
 ### Hook Script Design
 
@@ -339,14 +339,14 @@ if __name__ == "__main__":
 
 ### Recommendation: JSON in APPDATA
 
-Use `%APPDATA%\ClaudeTalk\config.json` — always writable by the current user, no admin rights required, survives Python environment changes.
+Use `%APPDATA%\AgentTalk\config.json` — always writable by the current user, no admin rights required, survives Python environment changes.
 
 ```python
 from pathlib import Path
 import json
 import os
 
-CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home())) / "ClaudeTalk"
+CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home())) / "AgentTalk"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 DEFAULTS = {
@@ -404,7 +404,7 @@ def save_config(cfg: dict):
 5. icon.stop() — exits pystray main loop → process exits
 ```
 
-**Via `/claudetalk:stop` slash command (HTTP):**
+**Via `/agenttalk:stop` slash command (HTTP):**
 ```
 1. Claude Code slash command script runs
 2. HTTP POST http://127.0.0.1:5050/stop
@@ -437,14 +437,14 @@ p.terminate()  # SIGTERM on Unix, TerminateProcess on Windows
 }
 ```
 
-Used by `ensure_running.py` hook and `/claudetalk:status` slash command.
+Used by `ensure_running.py` hook and `/agenttalk:status` slash command.
 
 ---
 
 ## Recommended Project Structure
 
 ```
-claudetalk/
+agenttalk/
 ├── service/
 │   ├── __main__.py          # Entry point: init pystray, threads, config
 │   ├── api.py               # FastAPI app, /speak /stop /status /voice endpoints
@@ -458,10 +458,10 @@ claudetalk/
 │   ├── speak.py             # Stop hook: POST last_assistant_message
 │   ├── ensure_running.py    # SessionStart hook: start service if not running
 │   └── slash/
-│       ├── start.py         # /claudetalk:start
-│       ├── stop.py          # /claudetalk:stop
-│       ├── voice.py         # /claudetalk:voice
-│       └── model.py         # /claudetalk:model
+│       ├── start.py         # /agenttalk:start
+│       ├── stop.py          # /agenttalk:stop
+│       ├── voice.py         # /agenttalk:voice
+│       └── model.py         # /agenttalk:model
 ├── assets/
 │   └── icon.png             # System tray icon (32x32 or 64x64 PNG)
 ├── install.py               # One-command installer: copies hooks, creates shortcut
@@ -472,7 +472,7 @@ claudetalk/
 
 ### Structure Rationale
 
-- **`service/`:** All service code in one package. `__main__.py` allows `python -m claudetalk.service` invocation.
+- **`service/`:** All service code in one package. `__main__.py` allows `python -m agenttalk.service` invocation.
 - **`hooks/`:** Hook scripts are thin relay scripts — minimal dependencies, fast startup. They must not import heavy libraries (kokoro, sounddevice).
 - **`models/`:** Isolates TTS engine differences behind a common interface: `synthesize(text, voice, speed) -> (np.ndarray, int)`.
 - **`install.py`:** Handles the "copy hooks + register in .claude/settings.json + create .lnk shortcut" flow without user path-wrangling.
@@ -528,7 +528,7 @@ Audio heard through system speakers
 
 **When to use:** Any thread that should not prevent process exit.
 
-**Trade-offs:** Daemon threads cannot do cleanup on process kill. For ClaudeTalk this is fine — the PID file is the only cleanup needed, and it is deleted in pystray's shutdown sequence before `icon.stop()` is called.
+**Trade-offs:** Daemon threads cannot do cleanup on process kill. For AgentTalk this is fine — the PID file is the only cleanup needed, and it is deleted in pystray's shutdown sequence before `icon.stop()` is called.
 
 ```python
 thread = threading.Thread(target=server.run, daemon=True)
@@ -706,5 +706,5 @@ This is a single-user, single-machine tool. Scalability in the traditional sense
 
 ---
 
-*Architecture research for: ClaudeTalk — Python FastAPI + pystray + local TTS background service*
+*Architecture research for: AgentTalk — Python FastAPI + pystray + local TTS background service*
 *Researched: 2026-02-26*

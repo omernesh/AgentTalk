@@ -1,4 +1,4 @@
-# Requirements: ClaudeTalk
+# Requirements: AgentTalk
 
 **Defined:** 2026-02-26
 **Core Value:** Claude Code's output is heard in real-time through a local TTS engine, hands-free, without leaving the terminal or touching a mouse.
@@ -10,7 +10,7 @@
 - [ ] **TTS-01**: Service loads kokoro-onnx 0.5.0 as the primary TTS engine on startup (fully offline, no API key)
 - [ ] **TTS-02**: Service performs eager model load + warmup synthesis call before accepting requests (avoids 3-8s first-request latency)
 - [ ] **TTS-03**: Service exposes `/health` endpoint returning 503 until model is warm and ready
-- [ ] **TTS-04**: Piper TTS is available as an alternate engine, switchable at runtime via `/claudetalk:model`
+- [ ] **TTS-04**: Piper TTS is available as an alternate engine, switchable at runtime via `/agenttalk:model`
 - [ ] **TTS-05**: User can adjust TTS speech speed (rate) via configuration and slash command
 
 ### Audio Pipeline
@@ -29,8 +29,8 @@
 - [ ] **SVC-02**: FastAPI HTTP server runs on localhost:5050 in a daemon thread (uvicorn)
 - [ ] **SVC-03**: TTS worker runs in a separate daemon thread consuming from the audio queue
 - [ ] **SVC-04**: pystray tray icon runs on the main thread (Win32 message loop requirement)
-- [ ] **SVC-05**: PID lock file at `%APPDATA%\ClaudeTalk\service.pid` prevents duplicate instances and enables clean process management
-- [ ] **SVC-06**: All service logs written to `%APPDATA%\ClaudeTalk\claudetalk.log` (pythonw.exe suppresses stdout; file logging is mandatory)
+- [ ] **SVC-05**: PID lock file at `%APPDATA%\AgentTalk\service.pid` prevents duplicate instances and enables clean process management
+- [ ] **SVC-06**: All service logs written to `%APPDATA%\AgentTalk\agenttalk.log` (pythonw.exe suppresses stdout; file logging is mandatory)
 - [ ] **SVC-07**: Service catches and logs all startup exceptions before crashing (no silent failures)
 
 ### Claude Code Integration
@@ -39,7 +39,7 @@
 - [ ] **HOOK-02**: `SessionStart` hook checks PID file and launches the service if not already running
 - [ ] **HOOK-03**: Both hooks are configured with `"async": true` so they never block Claude Code's UI
 - [ ] **HOOK-04**: Hook scripts read stdin as `sys.stdin.buffer.read().decode('utf-8')` to handle non-ASCII assistant output on Windows
-- [ ] **HOOK-05**: Hook registration is automated by `claudetalk setup` — no manual JSON editing required
+- [ ] **HOOK-05**: Hook registration is automated by `agenttalk setup` — no manual JSON editing required
 
 ### System Tray UI
 
@@ -52,10 +52,10 @@
 
 ### Slash Commands
 
-- [ ] **CMD-01**: `/claudetalk:start` slash command launches the ClaudeTalk service if not running
-- [ ] **CMD-02**: `/claudetalk:stop` slash command kills the ClaudeTalk service and silences any current audio
-- [ ] **CMD-03**: `/claudetalk:voice [name]` slash command switches the active Kokoro voice by name
-- [ ] **CMD-04**: `/claudetalk:model [kokoro|piper]` slash command switches the active TTS engine
+- [ ] **CMD-01**: `/agenttalk:start` slash command launches the AgentTalk service if not running
+- [ ] **CMD-02**: `/agenttalk:stop` slash command kills the AgentTalk service and silences any current audio
+- [ ] **CMD-03**: `/agenttalk:voice [name]` slash command switches the active Kokoro voice by name
+- [ ] **CMD-04**: `/agenttalk:model [kokoro|piper]` slash command switches the active TTS engine
 
 ### Audio Cues
 
@@ -66,17 +66,17 @@
 
 ### Configuration
 
-- [ ] **CFG-01**: All settings persist in `%APPDATA%\ClaudeTalk\config.json` (no admin rights required)
+- [ ] **CFG-01**: All settings persist in `%APPDATA%\AgentTalk\config.json` (no admin rights required)
 - [ ] **CFG-02**: Persisted settings include: active voice, speech speed, output volume, TTS model, mute state, pre-speech cue path, post-speech cue path
 - [ ] **CFG-03**: Config changes take effect immediately without service restart
 
 ### Installation & Packaging
 
-- [ ] **INST-01**: `pip install claudetalk` installs the package and CLI entry point
-- [ ] **INST-02**: `claudetalk setup` downloads the Kokoro ONNX model (~310MB) to `%APPDATA%\ClaudeTalk\models\` with a progress bar
-- [ ] **INST-03**: `claudetalk setup` registers the Stop and SessionStart hooks in `~/.claude/settings.json` without overwriting existing hooks
-- [ ] **INST-04**: `claudetalk setup` creates a desktop shortcut (.lnk) pointing to the ClaudeTalk service launcher
-- [ ] **INST-05**: `claudetalk setup` writes hook scripts using the absolute path to the venv's pythonw.exe (avoids PATH resolution failures)
+- [ ] **INST-01**: `pip install agenttalk` installs the package and CLI entry point
+- [ ] **INST-02**: `agenttalk setup` downloads the Kokoro ONNX model (~310MB) to `%APPDATA%\AgentTalk\models\` with a progress bar
+- [ ] **INST-03**: `agenttalk setup` registers the Stop and SessionStart hooks in `~/.claude/settings.json` without overwriting existing hooks
+- [ ] **INST-04**: `agenttalk setup` creates a desktop shortcut (.lnk) pointing to the AgentTalk service launcher
+- [ ] **INST-05**: `agenttalk setup` writes hook scripts using the absolute path to the venv's pythonw.exe (avoids PATH resolution failures)
 - [ ] **INST-06**: Install process works without administrator rights on Windows 11
 
 ### Documentation
@@ -85,7 +85,7 @@
 - [ ] **DOC-02**: README includes a troubleshooting section covering: WASAPI exclusive mode conflicts, Kokoro model download issues, Python version requirements (3.11 only), hook registration verification
 - [ ] **DOC-03**: README is updated with every feature addition — no feature ships without doc coverage
 - [ ] **DOC-04**: Repository includes MIT LICENSE file
-- [ ] **DOC-05**: Repository is published publicly at github.com/omern/ClaudeTalk
+- [ ] **DOC-05**: Repository is published publicly at github.com/omern/AgentTalk
 
 ## v2 Requirements
 
@@ -110,7 +110,7 @@
 |---------|--------|
 | Cloud TTS (gTTS, edge-tts, Azure TTS) | Requires internet, API keys — violates local-only constraint |
 | pyttsx3 | System TTS voice quality is poor; not a real TTS engine |
-| Screen reader functionality | Not the use case — ClaudeTalk only speaks Claude Code output |
+| Screen reader functionality | Not the use case — AgentTalk only speaks Claude Code output |
 | Multi-user / network TTS | Single-machine tool |
 | Streaming mid-response TTS | Claude Code hooks only fire at Stop time — impossible without deeper integration |
 | Windows SCM service registration | Adds admin rights requirement, unnecessary for single-user tool |

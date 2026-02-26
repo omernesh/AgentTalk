@@ -18,10 +18,10 @@ Features users assume exist. Missing these = product feels incomplete.
 | Silence non-assistant content | Speaking tool results, file paths, metadata = noise; users expect only the narrative text | MEDIUM | Text filtering logic: strip markdown, code blocks, file paths, JSON blobs before sending to TTS |
 | Mute / unmute toggle | First thing users reach for when sound becomes inconvenient | LOW | Pystray menu checkmark item; also via slash command |
 | System tray icon visible while running | Windows UX standard — background service must show presence | LOW | pystray on Windows shows tray on right-click automatically |
-| Start / stop via Claude Code commands | The interface is Claude Code, not a separate window | LOW | `/claudetalk:start` and `/claudetalk:stop` slash commands trigger HTTP calls to FastAPI |
+| Start / stop via Claude Code commands | The interface is Claude Code, not a separate window | LOW | `/agenttalk:start` and `/agenttalk:stop` slash commands trigger HTTP calls to FastAPI |
 | Auto-start with Claude Code session | Users should not need to manually start the service | LOW | `SessionStart` hook with `startup` matcher starts the service process |
 | Graceful exit from tray | "Quit" is required — you can't leave a process with no exit path | LOW | Tray right-click "Quit" item calls `icon.stop()` |
-| Single-command install | Developers expect `pip install claudetalk` or equivalent; multi-step installs are abandoned | MEDIUM | `pip install claudetalk` with post-install setup script for hook registration |
+| Single-command install | Developers expect `pip install agenttalk` or equivalent; multi-step installs are abandoned | MEDIUM | `pip install agenttalk` with post-install setup script for hook registration |
 
 ### Differentiators (Competitive Advantage)
 
@@ -29,12 +29,12 @@ Features that set the product apart — not expected of a basic TTS tool, but th
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Smart text filtering for AI output | Screen readers read everything — ClaudeTalk reads only the assistant's narrative, skipping code blocks, file paths, JSON, tool output | HIGH | Core differentiator; filter pipeline strips: markdown fences, inline code, file paths (heuristic: strings with `/` or `\`), JSON structures, ANSI escape codes |
-| Voice switching via slash command | Switching voices in a screen reader requires leaving the task; `/claudetalk:voice af_sarah` does it inline | LOW | Kokoro voices: af_alloy, af_bella, af_heart, af_jessica, af_kore, af_nicole, af_nova, af_river, af_sarah, af_sky (American English female); am_adam, am_echo, am_eric, am_fenrir, am_liam, am_michael, am_onyx (American English male) |
-| Model switching via slash command | Kokoro vs Piper trade-off (quality vs speed) selectable at runtime | MEDIUM | `/claudetalk:model kokoro` or `piper`; FastAPI swaps backend without restart |
+| Smart text filtering for AI output | Screen readers read everything — AgentTalk reads only the assistant's narrative, skipping code blocks, file paths, JSON, tool output | HIGH | Core differentiator; filter pipeline strips: markdown fences, inline code, file paths (heuristic: strings with `/` or `\`), JSON structures, ANSI escape codes |
+| Voice switching via slash command | Switching voices in a screen reader requires leaving the task; `/agenttalk:voice af_sarah` does it inline | LOW | Kokoro voices: af_alloy, af_bella, af_heart, af_jessica, af_kore, af_nicole, af_nova, af_river, af_sarah, af_sky (American English female); am_adam, am_echo, am_eric, am_fenrir, am_liam, am_michael, am_onyx (American English male) |
+| Model switching via slash command | Kokoro vs Piper trade-off (quality vs speed) selectable at runtime | MEDIUM | `/agenttalk:model kokoro` or `piper`; FastAPI swaps backend without restart |
 | Tray icon shows speaking status | Visual feedback when TTS is active vs idle — reduces anxiety about whether it's working | LOW | pystray supports dynamic icon; swap icon image on TTS start/stop |
 | Sentence-chunked delivery | TTS starts speaking sentence by sentence rather than waiting for full response — lower perceived latency | MEDIUM | Split on `.`, `!`, `?` before sending to TTS; queue chunks; Kokoro handles sentence-length inputs well |
-| SessionStart auto-launch hook | Starts ClaudeTalk when Claude Code opens, not just when user remembers | LOW | `SessionStart` hook with `matcher: "startup"` checks if service is running, starts it if not |
+| SessionStart auto-launch hook | Starts AgentTalk when Claude Code opens, not just when user remembers | LOW | `SessionStart` hook with `matcher: "startup"` checks if service is running, starts it if not |
 | Local-only (no cloud dependency) | Privacy-conscious developers prefer zero telemetry; all other AI voice tools make network calls | LOW | Architecture decision already made; differentiator in positioning |
 | Tray shows current voice name | Glanceable status — which voice is active right now | LOW | Dynamic pystray menu item updated via `icon.update_menu()` |
 
@@ -67,11 +67,11 @@ Features that seem like a good idea but create disproportionate complexity or sc
                        └──requires──> [FastAPI /speak endpoint]
                                           └──requires──> [TTS model loaded]
 
-[/claudetalk:voice command]
+[/agenttalk:voice command]
     └──requires──> [FastAPI /voice endpoint]
                        └──requires──> [Service running]
 
-[/claudetalk:model command]
+[/agenttalk:model command]
     └──requires──> [FastAPI /model endpoint]
                        └──requires──> [Both Kokoro and Piper available]
 
@@ -81,7 +81,7 @@ Features that seem like a good idea but create disproportionate complexity or sc
 [Sentence chunking]
     └──enhances──> [Stop hook delivery]
 
-[pip install claudetalk]
+[pip install agenttalk]
     └──requires──> [Model files bundled or downloaded on first run]
 ```
 
@@ -97,9 +97,9 @@ Features that seem like a good idea but create disproportionate complexity or sc
 
 **Source:** https://code.claude.com/docs/en/hooks (HIGH confidence)
 
-### Relevant Hook Events for ClaudeTalk
+### Relevant Hook Events for AgentTalk
 
-| Event | When It Fires | What ClaudeTalk Uses It For |
+| Event | When It Fires | What AgentTalk Uses It For |
 |-------|---------------|-----------------------------|
 | `SessionStart` | When session begins or resumes | Auto-start the FastAPI service if not running |
 | `Stop` | When Claude finishes responding | Extract `last_assistant_message`, filter, POST to TTS |
@@ -135,7 +135,7 @@ The hook configuration in `~/.claude/settings.json` or `.claude/settings.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "python C:/path/to/claudetalk/hook.py"
+            "command": "python C:/path/to/agenttalk/hook.py"
           }
         ]
       }
@@ -218,18 +218,18 @@ Strip → then speak. Order:
 ### Recommended: pip install with post-install model download
 
 ```bash
-pip install claudetalk
-claudetalk setup   # downloads model files, registers hooks
+pip install agenttalk
+agenttalk setup   # downloads model files, registers hooks
 ```
 
 **Why this pattern:**
 - Developers expect `pip install` — lowest friction for the target audience
-- `pyproject.toml` with a `console_scripts` entry point creates a `claudetalk` command automatically
+- `pyproject.toml` with a `console_scripts` entry point creates a `agenttalk` command automatically
 - Post-install `setup` command handles: model file download (Kokoro ONNX), hook registration in `~/.claude/settings.json`, desktop shortcut creation
 
 **Why NOT PyInstaller exe:**
 - Adds ~50-100MB to distribution
-- Loses pip upgrade path (`pip install --upgrade claudetalk`)
+- Loses pip upgrade path (`pip install --upgrade agenttalk`)
 - ONNX models are already large downloads; bundling them into the exe is impractical
 - Developer audience already has Python
 
@@ -240,11 +240,11 @@ claudetalk setup   # downloads model files, registers hooks
 
 ### Windows-specific notes
 
-- `pip install claudetalk` installs the `claudetalk` command to `%PYTHON%\Scripts\claudetalk.exe` (auto-shim)
-- If Python Scripts folder not in PATH: `python -m claudetalk` fallback in documentation
+- `pip install agenttalk` installs the `agenttalk` command to `%PYTHON%\Scripts\agenttalk.exe` (auto-shim)
+- If Python Scripts folder not in PATH: `python -m agenttalk` fallback in documentation
 - Virtual environment support: service should work inside a venv; hook must use the same Python as the service
 - No admin rights needed for pip install to user site-packages (`pip install --user`)
-- Model files stored in `%APPDATA%\claudetalk\models\` (user-writable, no admin)
+- Model files stored in `%APPDATA%\agenttalk\models\` (user-writable, no admin)
 
 ---
 
@@ -256,7 +256,7 @@ claudetalk setup   # downloads model files, registers hooks
 
 ```
 [speaking indicator - checkmark when active]
-ClaudeTalk  (disabled header item, shows app name)
+AgentTalk  (disabled header item, shows app name)
 ---separator---
 Mute / Unmute        [checkmark]
 Current voice: af_sarah  (disabled, informational)
@@ -301,12 +301,12 @@ Quit
 - [x] **System tray icon** — shows service is running; right-click "Quit" is minimum viable tray UX
 - [x] **Mute toggle** — in tray menu and via slash command — critical for real-world use
 - [x] **SessionStart auto-launch** — so users don't have to think about starting the service
-- [x] **`pip install claudetalk` + `claudetalk setup`** — single-command installation
+- [x] **`pip install agenttalk` + `agenttalk setup`** — single-command installation
 
 ### Add After Validation (v1.x)
 
-- [ ] **Voice switching** (`/claudetalk:voice`) — validate that users want multiple voices before building the selector UI
-- [ ] **Model switching** (`/claudetalk:model`) — Piper backend needs separate integration work
+- [ ] **Voice switching** (`/agenttalk:voice`) — validate that users want multiple voices before building the selector UI
+- [ ] **Model switching** (`/agenttalk:model`) — Piper backend needs separate integration work
 - [ ] **Tray icon speaking indicator** — animate icon during TTS; confirm users notice and value it
 - [ ] **Sentence-chunked delivery** — if users report TTS starting "too late" after long responses
 
@@ -327,7 +327,7 @@ Quit
 | System tray icon (basic) | HIGH | LOW | P1 |
 | Mute toggle (tray + command) | HIGH | LOW | P1 |
 | SessionStart auto-launch | HIGH | LOW | P1 |
-| pip install + claudetalk setup | HIGH | MEDIUM | P1 |
+| pip install + agenttalk setup | HIGH | MEDIUM | P1 |
 | Voice switching | MEDIUM | LOW | P2 |
 | Model switching (Kokoro/Piper) | MEDIUM | MEDIUM | P2 |
 | Tray speaking status indicator | MEDIUM | LOW | P2 |
@@ -345,7 +345,7 @@ Quit
 
 ## Competitor Feature Analysis
 
-| Feature | Generic Screen Readers (NVDA, Narrator) | VoiceMode (MCP server) | ClaudeTalk (our approach) |
+| Feature | Generic Screen Readers (NVDA, Narrator) | VoiceMode (MCP server) | AgentTalk (our approach) |
 |---------|----------------------------------------|------------------------|--------------------------|
 | Text filtering | Read everything including metadata | Relies on conversation context | Targeted: strip code/paths/JSON, speak prose only |
 | Voice switching | System-level, not context-aware | OpenAI voices or Kokoro via config | Slash command inline, no context switch |
@@ -370,5 +370,5 @@ Quit
 - [Kokoro 82M install guide](https://aleksandarhaber.com/kokoro-82m-install-and-run-locally-fast-small-and-free-text-to-speech-tts-ai-model-kokoro-82m/) — LOW confidence (blog, used for voice names only)
 
 ---
-*Feature research for: Developer TTS companion app (ClaudeTalk)*
+*Feature research for: Developer TTS companion app (AgentTalk)*
 *Researched: 2026-02-26*

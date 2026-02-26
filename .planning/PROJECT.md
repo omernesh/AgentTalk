@@ -1,8 +1,8 @@
-# ClaudeTalk
+# AgentTalk
 
 ## What This Is
 
-ClaudeTalk is a lightweight Windows background service that intercepts Claude Code's text output and speaks it aloud using a local TTS model (Kokoro or Piper). It runs silently in the system tray, starts automatically with Claude Code, and is controlled entirely via Claude Code slash commands. No cloud services, no API keys — fully local.
+AgentTalk is a lightweight Windows background service that intercepts Claude Code's text output and speaks it aloud using a local TTS model (Kokoro or Piper). It runs silently in the system tray, starts automatically with Claude Code, and is controlled entirely via Claude Code slash commands. No cloud services, no API keys — fully local.
 
 ## Core Value
 
@@ -22,14 +22,14 @@ Claude Code's output is heard in real-time through a local TTS engine, hands-fre
 - [ ] Service appears as an icon in the Windows system tray while running
 - [ ] Desktop shortcut (.lnk) installed for manual start/restart outside Claude Code
 - [ ] Service starts automatically when Claude Code starts (via SessionStart hook)
-- [ ] `/claudetalk:start` slash command launches the service
-- [ ] `/claudetalk:stop` slash command kills the service
-- [ ] `/claudetalk:voice` slash command switches the active voice/speaker
-- [ ] `/claudetalk:model` slash command switches the TTS model (Kokoro ↔ Piper)
+- [ ] `/agenttalk:start` slash command launches the service
+- [ ] `/agenttalk:stop` slash command kills the service
+- [ ] `/agenttalk:voice` slash command switches the active voice/speaker
+- [ ] `/agenttalk:model` slash command switches the TTS model (Kokoro ↔ Piper)
 - [ ] Only the assistant's main text output is spoken — no metadata, tool results, or system messages
 - [ ] Documentation is comprehensive, user-friendly, and always current
 - [ ] Installation is a single command or guided script (no manual path-wrangling)
-- [ ] Project is published as a public MIT-licensed GitHub repo (omern/ClaudeTalk)
+- [ ] Project is published as a public MIT-licensed GitHub repo (omern/AgentTalk)
 
 ### Out of Scope
 
