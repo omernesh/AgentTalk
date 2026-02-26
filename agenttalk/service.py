@@ -22,7 +22,11 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from agenttalk.tts_worker import TTS_QUEUE, STATE, start_tts_worker  # noqa: F401
+import pystray
+
+from agenttalk.tts_worker import TTS_QUEUE, STATE, start_tts_worker, _ducker  # noqa: F401
+from agenttalk.tray import build_tray_icon, create_image_idle, create_image_speaking  # noqa: F401
+from agenttalk.config_loader import load_config
 
 # ---------------------------------------------------------------------------
 # APPDATA paths
@@ -196,6 +200,8 @@ def play_audio(samples, sample_rate: int) -> None:
 
 is_ready: bool = False
 _kokoro_engine = None
+# Tray icon reference — set by _setup() callback, read by _lifespan to pass to start_tts_worker.
+_tray_icon = None
 
 
 class SpeakRequest(BaseModel):
@@ -214,10 +220,11 @@ async def _lifespan(app: FastAPI):
         is_ready = True
         logging.info("Service ready. /health will return 200.")
 
-        # Start TTS worker daemon thread — must be started after Kokoro is loaded.
-        # The worker thread consumes from TTS_QUEUE and calls kokoro_engine.create().
-        start_tts_worker(_kokoro_engine)
-        logging.info("TTS worker started.")
+        # Phase 4: Start TTS worker AFTER Kokoro loads, passing the tray icon reference.
+        # _tray_icon is set by _setup() before _start_http_server() is called, so it is
+        # populated by the time _lifespan runs inside uvicorn.
+        start_tts_worker(_kokoro_engine, icon=_tray_icon)
+        logging.info("TTS worker started with icon reference.")
 
         # Phase 1 proof: synthesize and play hardcoded audio to confirm full pipeline
         logging.info("Running startup audio proof: synthesizing 'AgentTalk is running.'")
@@ -327,11 +334,57 @@ def main() -> None:
     logging.info("=== AgentTalk service starting ===")
     try:
         acquire_pid_lock()
-        _start_http_server()
-        logging.info("HTTP daemon thread started. Waiting for lifespan startup...")
-        # Phase 1: block main thread indefinitely.
-        # Phase 4 replaces this with pystray Icon.run(setup=fn) on the main thread.
-        threading.Event().wait()
+
+        # CUE-04: Load persisted config and seed cue paths into STATE before the tray starts.
+        # Phase 5 will add write support; Phase 4 reads only.
+        _cfg = load_config()
+        if _cfg.get("pre_cue_path"):
+            STATE["pre_cue_path"] = _cfg["pre_cue_path"]
+            logging.info("Config: pre_cue_path = %s", STATE["pre_cue_path"])
+        if _cfg.get("post_cue_path"):
+            STATE["post_cue_path"] = _cfg["post_cue_path"]
+            logging.info("Config: post_cue_path = %s", STATE["post_cue_path"])
+
+        # Register atexit: unduck any ducked sessions on abnormal exit.
+        # This covers crashes and SIGTERM — prevents Spotify/browser stuck at 50%.
+        atexit.register(_ducker.unduck)
+
+        def _on_quit() -> None:
+            """Called by tray Quit menu item before icon.stop()."""
+            logging.info("Tray Quit selected — shutting down.")
+            _ducker.unduck()  # Restore any ducked sessions immediately
+            # os._exit(0) terminates the entire process immediately.
+            # sys.exit() raises SystemExit which daemon threads can swallow.
+            os._exit(0)
+
+        # Build tray icon (does NOT run — just constructs the pystray.Icon object).
+        # STATE is imported from tts_worker; tray menu reads muted and voice from it.
+        icon = build_tray_icon(state=STATE, on_quit=_on_quit)
+
+        def _setup(icon: pystray.Icon) -> None:
+            """
+            Called by pystray once the Win32 message loop is running.
+
+            MUST set icon.visible = True here (not before icon.run()).
+            The visible property can only be set while the icon is running (pystray pitfall #1).
+
+            Stores the icon reference so _lifespan can pass it to start_tts_worker.
+            Starts the HTTP server daemon thread — uvicorn's _lifespan runs Kokoro load,
+            then calls start_tts_worker(_kokoro_engine, icon=_tray_icon).
+            """
+            global _tray_icon
+            icon.visible = True  # REQUIRED — icon starts hidden by default
+            _tray_icon = icon
+            _start_http_server()
+            logging.info("Service setup complete — tray icon visible, HTTP server starting.")
+
+        # SVC-04: pystray Icon.run() takes the main thread (Win32 message loop).
+        # This replaces threading.Event().wait() from Phase 1.
+        # _setup fires once the icon is running; it stores the icon ref and starts HTTP.
+        # _lifespan (inside uvicorn) starts the TTS worker after Kokoro loads.
+        logging.info("Starting pystray tray icon on main thread.")
+        icon.run(setup=_setup)
+
     except Exception:
         logging.exception("Fatal error during startup")
         sys.exit(1)
