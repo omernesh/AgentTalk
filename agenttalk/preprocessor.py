@@ -28,8 +28,8 @@ def strip_markdown(text: str) -> str:
     # 1. Fenced code blocks (MUST come before inline code)
     text = re.sub(r"```[\s\S]*?```", " ", text)
 
-    # 2. Inline code
-    text = re.sub(r"`[^`\n]+`", " ", text)
+    # 2. Inline code — unwrap to plain text (keep the content, drop the backticks)
+    text = re.sub(r"`([^`\n]+)`", r"\1", text)
 
     # 3. Markdown links — keep link text, drop URL (MUST come before bare URL stripping)
     #    If bare URLs were stripped first, the parenthetical URL in [text](url) would

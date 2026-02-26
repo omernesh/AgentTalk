@@ -14,8 +14,8 @@ import pytest
 @pytest.mark.parametrize("input_text, expected", [
     # Fenced code block — replaced with space then normalized/stripped to ""
     ("```python\ncode\n```", ""),
-    # Inline code — replaced with space; surrounding text collapses to single space after normalization
-    ("Use `foo()` to call", "Use to call"),
+    # Inline code — unwrapped to plain text (backticks removed, content kept)
+    ("Use `foo()` to call", "Use foo() to call"),
     # URL
     ("Visit https://example.com now", "Visit now"),
     # Markdown link — keep text, drop URL (link extraction before bare URL stripping)
