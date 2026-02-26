@@ -84,7 +84,8 @@ def create_image_speaking(size: int = 64) -> Image.Image:
 
 def _piper_dir() -> Path:
     """Return the Piper models directory path."""
-    return Path(os.environ["APPDATA"]) / "AgentTalk" / "models" / "piper"
+    appdata = os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))
+    return Path(appdata) / "AgentTalk" / "models" / "piper"
 
 
 def build_tray_icon(
@@ -107,8 +108,8 @@ def build_tray_icon(
                  Called before icon.stop(). Use for cleanup (e.g., audio unduck).
         on_mute_change: Optional callable invoked after every Mute toggle.
                         Use for save_config() and immediate audio stop.
-        on_config_change: Optional callable invoked after model or piper voice
-                          selection from tray. Use for save_config(STATE).
+        on_config_change: Optional callable invoked after model, kokoro voice, or
+                          piper voice selection from tray. Use for save_config(STATE).
                           Defaults to None so service.py call sites without this
                           parameter continue to compile without modification.
 
@@ -124,6 +125,14 @@ def build_tray_icon(
       6. Quit — calls on_quit() then icon.stop()
     """
 
+    def _invoke_config_change() -> None:
+        """Invoke on_config_change with exception guard. No-op when callback is None."""
+        if on_config_change is not None:
+            try:
+                on_config_change()
+            except Exception:
+                logging.warning("on_config_change callback raised exception", exc_info=True)
+
     def _toggle_mute(icon, item=None):
         state["muted"] = not state["muted"]
         if on_mute_change is not None:
@@ -136,30 +145,23 @@ def build_tray_icon(
     def _set_voice(voice):
         def _inner(icon, item):
             state["voice"] = voice
+            _invoke_config_change()
             icon.update_menu()
         return _inner
 
     def _set_model(model):
         def _inner(icon, item):
             state["model"] = model
-            if on_config_change is not None:
-                try:
-                    on_config_change()
-                except Exception:
-                    logging.warning("on_config_change callback raised exception", exc_info=True)
+            _invoke_config_change()
             icon.update_menu()
         return _inner
 
-    def _set_piper_voice(stem: str, full_path: str):
+    def _set_piper_voice(full_path: str):
         """Select a Piper voice: set piper_model_path and switch to piper model."""
         def _inner(icon, item):
             state["piper_model_path"] = full_path
             state["model"] = "piper"
-            if on_config_change is not None:
-                try:
-                    on_config_change()
-                except Exception:
-                    logging.warning("on_config_change callback raised", exc_info=True)
+            _invoke_config_change()
             icon.update_menu()
         return _inner
 
@@ -191,7 +193,7 @@ def build_tray_icon(
                 full_path = str(onnx_path)
                 yield pystray.MenuItem(
                     stem,
-                    _set_piper_voice(stem, full_path),
+                    _set_piper_voice(full_path),
                     checked=lambda item, p=full_path: state.get("piper_model_path") == p,
                     radio=True,
                 )
