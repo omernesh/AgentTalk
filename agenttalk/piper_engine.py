@@ -66,7 +66,7 @@ class PiperEngine:
         voice: str = None,
         speed: float = 1.0,
         lang: str = "en-us",
-    ) -> tuple:
+    ) -> tuple[np.ndarray, int]:
         """
         Synthesize text to audio samples.
 
@@ -95,6 +95,10 @@ class PiperEngine:
         # Read back: extract raw PCM bytes and actual sample rate
         buf.seek(0)
         with wave.open(buf, "rb") as wf:
+            if wf.getnframes() == 0:
+                raise RuntimeError(
+                    f"Piper synthesized zero frames for: {text[:60]!r}"
+                )
             raw = wf.readframes(wf.getnframes())
             self._sample_rate = wf.getframerate()
 

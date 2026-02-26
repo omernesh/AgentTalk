@@ -41,9 +41,11 @@ class AudioDucker:
     """
 
     def __init__(self) -> None:
-        # Maps process_name -> original volume before ducking.
+        # List of (process_name, original_volume) tuples saved before ducking.
+        # Using a list instead of a dict so that multiple sessions sharing the
+        # same process name are each saved and restored independently.
         # Cleared by unduck() after restoration.
-        self._saved: dict[str, float] = {}
+        self._saved: list[tuple[str, float]] = []
 
     @property
     def is_ducked(self) -> bool:
@@ -77,14 +79,14 @@ class AudioDucker:
                 vol = session.SimpleAudioVolume
                 original = vol.GetMasterVolume()
                 if original > 0.0:
-                    self._saved[name] = original
+                    self._saved.append((name, original))
                     vol.SetMasterVolume(original * 0.5, None)
                     logging.debug(
                         "Ducked %s: %.2f → %.2f", name, original, original * 0.5
                     )
         except Exception:
             logging.warning(
-                "Audio ducking failed — continuing without duck.", exc_info=True
+                "Audio ducking partially or fully failed.", exc_info=True
             )
         finally:
             comtypes.CoUninitialize()
@@ -103,14 +105,21 @@ class AudioDucker:
         comtypes.CoInitialize()
         try:
             sessions = AudioUtilities.GetAllSessions()
+            # Build a lookup from process name to the list of saved volumes so
+            # that each saved (name, volume) entry can be matched and consumed
+            # independently, even when multiple sessions share a process name.
+            remaining = list(self._saved)
             for session in sessions:
                 if session.Process is None:
                     continue
                 name = session.Process.name()
-                if name in self._saved:
-                    vol = session.SimpleAudioVolume
-                    vol.SetMasterVolume(self._saved[name], None)
-                    logging.debug("Restored %s → %.2f", name, self._saved[name])
+                for i, (saved_name, saved_vol) in enumerate(remaining):
+                    if saved_name == name:
+                        vol = session.SimpleAudioVolume
+                        vol.SetMasterVolume(saved_vol, None)
+                        logging.debug("Restored %s → %.2f", name, saved_vol)
+                        remaining.pop(i)
+                        break
             self._saved.clear()
         except Exception:
             logging.warning("Audio un-ducking failed.", exc_info=True)

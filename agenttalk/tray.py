@@ -12,6 +12,7 @@ Both are done by service.py's _setup() callback (research pattern #1).
 Requirements: TRAY-01, TRAY-02, TRAY-03, TRAY-04, TRAY-05, TRAY-06
 """
 import logging
+from typing import Callable
 
 import pystray
 from PIL import Image, ImageDraw
@@ -58,7 +59,7 @@ def create_image_speaking(size: int = 64) -> Image.Image:
     return image
 
 
-def build_tray_icon(state: dict, on_quit: callable = None) -> pystray.Icon:
+def build_tray_icon(state: dict, on_quit: Callable[[], None] | None = None) -> pystray.Icon:
     """
     Build and return a pystray.Icon with the AgentTalk tray menu.
 
