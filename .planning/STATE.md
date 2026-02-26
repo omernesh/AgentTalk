@@ -68,6 +68,7 @@ Recent decisions affecting current work:
 - [02-01]: is_speakable 40% alpha threshold: short-key JSON like {"k":1} (14%) filtered; verbose-key JSON like {"key":"value"} (50%) passes — acceptable
 - [02-02]: threading.Queue (not asyncio.Queue) is the thread-safe bridge between async FastAPI handler and blocking TTS daemon thread
 - [02-02]: WasapiSettings applied conditionally — query host API, only WASAPI devices get auto_convert=True (MME devices get PaErrorCode -9984 if applied)
+- [quick-1]: speech_mode fail-open: stop_hook GETs /config with 2s timeout; if unreachable or field absent, falls through to auto behavior so audio still plays during service startup
 
 ### Pending Todos
 
@@ -81,5 +82,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Phase 2 complete — /speak endpoint live, TTS queue + daemon thread operational
+Stopped at: Quick task 1 complete — speech_mode toggle, /agenttalk:speak, /agenttalk:mode, config option 6
 Resume file: None
