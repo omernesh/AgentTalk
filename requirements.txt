@@ -1,0 +1,5 @@
+kokoro-onnx==0.5.0
+sounddevice==0.5.5
+fastapi>=0.110
+uvicorn>=0.29
+psutil>=5.9
