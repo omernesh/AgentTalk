@@ -540,6 +540,8 @@ async def update_config(req: ConfigRequest):
         if key in STATE:
             STATE[key] = value
             logging.info("Config updated: %s = %s", key, value)
+        else:
+            logging.warning("Config update ignored — unknown STATE key: %s", key)
     try:
         save_config(STATE)
     except OSError:

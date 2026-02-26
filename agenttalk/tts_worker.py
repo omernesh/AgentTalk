@@ -263,14 +263,14 @@ def _tts_worker(kokoro_engine) -> None:
 
         except Exception:
             logging.exception("TTS worker error — skipping batch.")
-            # Ensure unduck on error path — prevents volumes stuck at 50% after crash
-            if _ducker.is_ducked:
-                try:
-                    _ducker.unduck()
-                except Exception:
-                    logging.warning(
-                        "Unduck on error path also failed.", exc_info=True
-                    )
+            # Ensure unduck on error path — prevents volumes stuck at 50% after crash.
+            # unduck() is a no-op when nothing was ducked (guards internally).
+            try:
+                _ducker.unduck()
+            except Exception:
+                logging.warning(
+                    "Unduck on error path also failed.", exc_info=True
+                )
         finally:
             # TRAY-03: Always restore idle icon and clear speaking flag
             STATE["speaking"] = False

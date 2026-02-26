@@ -46,8 +46,8 @@ def main() -> None:
             sys.exit(0)
     except urllib.error.URLError:
         pass  # service unreachable — fall through to speak (fail-open: auto mode behavior)
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"[agenttalk stop_hook] Unexpected error reading config: {exc}", file=sys.stderr)
 
     # HOOK-01: POST text to /speak endpoint.
     # 202 = queued, 200 = skipped (alpha filter), 503 = warmup — all acceptable.
