@@ -63,6 +63,7 @@ STATE: dict = {
     "post_cue_path": None,      # Path to WAV file played after each utterance (CUE-02, CUE-03)
     "model": "kokoro",          # TTS engine: "kokoro" or "piper" (TTS-04)
     "piper_model_path": None,   # Absolute path to Piper ONNX model file (TTS-04)
+    "speech_mode": "auto",      # "auto" (speak every reply) or "semi-auto" (only on /speak)
 }
 
 # Module-level AudioDucker instance — shared between worker and atexit handler.

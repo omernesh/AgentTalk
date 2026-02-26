@@ -264,6 +264,11 @@ class ConfigRequest(BaseModel):
         description="Absolute path to a Piper ONNX voice model (.onnx). Required when model='piper'.",
         examples=["C:/Users/user/AppData/Roaming/AgentTalk/models/piper/en_US-lessac-medium.onnx"],
     )
+    speech_mode: str | None = Field(
+        None,
+        description="Speech mode: 'auto' (speak every reply) or 'semi-auto' (only speak when /speak is invoked).",
+        examples=["auto", "semi-auto"],
+    )
 
 
 @asynccontextmanager
@@ -413,6 +418,7 @@ def get_config():
     - `muted`: when true, synthesis is skipped entirely
     - `pre_cue_path` / `post_cue_path`: optional WAV paths played before/after each utterance
     - `piper_model_path`: absolute path to the active Piper ONNX model (used when `model` is `piper`)
+    - `speech_mode`: `"auto"` (speak every reply) or `"semi-auto"` (only speak when /speak is invoked)
     """
     return JSONResponse({
         "voice":            STATE.get("voice"),
@@ -423,6 +429,7 @@ def get_config():
         "pre_cue_path":     STATE.get("pre_cue_path"),
         "post_cue_path":    STATE.get("post_cue_path"),
         "piper_model_path": STATE.get("piper_model_path"),
+        "speech_mode":      STATE.get("speech_mode"),
     })
 
 
@@ -611,7 +618,7 @@ def main() -> None:
         # CFG-01, CFG-02, CFG-03: Restore all persisted settings from config.json at startup.
         # This ensures voice, model, speed, volume, mute, and cue paths survive restarts.
         _cfg = load_config()
-        for _key in ("voice", "speed", "volume", "model", "muted", "pre_cue_path", "post_cue_path", "piper_model_path"):
+        for _key in ("voice", "speed", "volume", "model", "muted", "pre_cue_path", "post_cue_path", "piper_model_path", "speech_mode"):
             if _key in _cfg and _cfg[_key] is not None:
                 STATE[_key] = _cfg[_key]
                 logging.info("Config restored: %s = %s", _key, STATE[_key])

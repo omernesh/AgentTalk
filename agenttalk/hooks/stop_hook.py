@@ -12,6 +12,7 @@ import urllib.request
 import urllib.error
 
 SERVICE_URL = 'http://localhost:5050/speak'
+CONFIG_URL  = 'http://localhost:5050/config'
 TIMEOUT_SECS = 3  # POST completes in <1s; 3s gives headroom without long block
 
 
@@ -34,6 +35,19 @@ def main() -> None:
     text = payload.get('last_assistant_message', '').strip()
     if not text:
         sys.exit(0)
+
+    # Semi-auto guard: fetch current speech_mode before deciding to speak.
+    # Fail-open: if service unreachable or field absent, fall through to auto behavior.
+    cfg_req = urllib.request.Request(CONFIG_URL, method='GET')
+    try:
+        with urllib.request.urlopen(cfg_req, timeout=2) as resp:
+            cfg = json.loads(resp.read().decode('utf-8'))
+        if cfg.get('speech_mode') == 'semi-auto':
+            sys.exit(0)
+    except urllib.error.URLError:
+        pass  # service unreachable — fall through to speak (fail-open: auto mode behavior)
+    except Exception:
+        pass
 
     # HOOK-01: POST text to /speak endpoint.
     # 202 = queued, 200 = skipped (alpha filter), 503 = warmup — all acceptable.

@@ -79,6 +79,7 @@ def save_config(state: dict) -> None:
         "pre_cue_path":     state.get("pre_cue_path"),
         "post_cue_path":    state.get("post_cue_path"),
         "piper_model_path": state.get("piper_model_path"),
+        "speech_mode":      state.get("speech_mode", "auto"),
     }
 
     tmp = path.with_suffix(".json.tmp")
