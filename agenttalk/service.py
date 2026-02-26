@@ -13,11 +13,17 @@ import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import queue
+
+import numpy as np
 import psutil
 import sounddevice as sd
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+
+from agenttalk.tts_worker import TTS_QUEUE, STATE, start_tts_worker  # noqa: F401
 
 # ---------------------------------------------------------------------------
 # APPDATA paths
@@ -141,22 +147,33 @@ def _load_and_warmup_kokoro():
 
 def _configure_audio() -> None:
     """
-    Configure sounddevice for playback.
-    Probes the default output device to confirm playback capability.
-    WASAPI-specific settings are NOT applied globally — they cause host API mismatch errors
-    when the default device uses MME/DirectSound (PortAudio handles resampling internally).
+    Configure sounddevice for playback with conditional WASAPI detection.
+
+    Queries the default output device's host API. If the device is WASAPI,
+    applies WasapiSettings(auto_convert=True) to handle sample rate mismatches.
+    For non-WASAPI devices (MME, DirectSound), PortAudio handles resampling
+    internally — applying WasapiSettings to those devices causes
+    PaErrorCode -9984 (incompatible host API specific stream info).
+
+    This satisfies AUDIO-05: WASAPI auto_convert is set only when appropriate.
     """
     try:
-        default_out = sd.query_devices(sd.default.device[1])
-        logging.info(
-            "sounddevice default output device: [%d] %s (%s channels, %.0f Hz default rate).",
-            sd.default.device[1],
-            default_out.get("name", "unknown"),
-            default_out.get("max_output_channels", "?"),
-            default_out.get("default_samplerate", 0),
-        )
+        device_info = sd.query_devices(kind="output")
+        hostapi_id = device_info.get("hostapi", 0)
+        hostapi_info = sd.query_hostapis(hostapi_id)
+        hostapi_name = hostapi_info.get("name", "").upper()
+        if "WASAPI" in hostapi_name:
+            sd.default.extra_settings = sd.WasapiSettings(auto_convert=True)
+            logging.info("WASAPI device detected — auto_convert enabled.")
+        else:
+            logging.info(
+                "Non-WASAPI device (%s) — using PortAudio default resampling.",
+                hostapi_name,
+            )
     except Exception:
-        logging.info("sounddevice configured (default output device).")
+        logging.warning(
+            "Could not detect host API; using PortAudio defaults.", exc_info=True
+        )
 
 
 def play_audio(samples, sample_rate: int) -> None:
@@ -182,6 +199,12 @@ is_ready: bool = False
 _kokoro_engine = None
 
 
+class SpeakRequest(BaseModel):
+    """Request body for POST /speak."""
+
+    text: str
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     """FastAPI lifespan: load Kokoro before accepting requests; set is_ready after warmup."""
@@ -191,6 +214,11 @@ async def _lifespan(app: FastAPI):
         _kokoro_engine = _load_and_warmup_kokoro()
         is_ready = True
         logging.info("Service ready. /health will return 200.")
+
+        # Start TTS worker daemon thread — must be started after Kokoro is loaded.
+        # The worker thread consumes from TTS_QUEUE and calls kokoro_engine.create().
+        start_tts_worker(_kokoro_engine)
+        logging.info("TTS worker started.")
 
         # Phase 1 proof: synthesize and play hardcoded audio to confirm full pipeline
         logging.info("Running startup audio proof: synthesizing 'AgentTalk is running.'")
@@ -225,6 +253,46 @@ def health():
     if not is_ready:
         return JSONResponse({"status": "initializing"}, status_code=503)
     return JSONResponse({"status": "ok"}, status_code=200)
+
+
+@app.post("/speak", status_code=202)
+async def speak(req: SpeakRequest):
+    """
+    Accept text, preprocess for TTS readiness, and queue for synthesis.
+
+    Returns:
+        202 + {"status": "queued", "sentences": N}  — text enqueued for playback
+        200 + {"status": "skipped", ...}             — no speakable content after preprocessing
+        429 + {"status": "dropped", ...}             — TTS queue full (backpressure)
+        503 + {"status": "not_ready"}                — service not yet initialized
+    """
+    if not is_ready:
+        return JSONResponse({"status": "not_ready"}, status_code=503)
+
+    from agenttalk.preprocessor import preprocess
+
+    sentences = preprocess(req.text)
+
+    if not sentences:
+        return JSONResponse(
+            {"status": "skipped", "reason": "no speakable sentences"},
+            status_code=200,
+        )
+
+    try:
+        TTS_QUEUE.put_nowait(sentences)
+        return JSONResponse(
+            {"status": "queued", "sentences": len(sentences)},
+            status_code=202,
+        )
+    except queue.Full:
+        logging.info(
+            "TTS queue full (%d items) — dropping /speak request.", TTS_QUEUE.qsize()
+        )
+        return JSONResponse(
+            {"status": "dropped", "reason": "queue full"},
+            status_code=429,
+        )
 
 
 # ---------------------------------------------------------------------------
