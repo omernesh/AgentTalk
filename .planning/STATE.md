@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-02-26)
 Phase: 5 of 6 (Configuration, Voice/Model Switching, and Slash Commands) — IN PROGRESS
 Plan: 1 of 3 complete (05-01 done)
 Status: Wave 1 complete — save_config, /config + /stop endpoints, STATE engine keys added
-Last activity: 2026-02-26 - Completed quick task 1: semi-automatic speech mode with /speak command and /agenttalk:mode toggle
+Last activity: 2026-02-26 - Completed quick task 2: tray Model submenu and context-aware Voice submenu (kokoro/piper)
 
 Progress: [████░░░░░░] 33%
 
@@ -69,6 +69,7 @@ Recent decisions affecting current work:
 - [02-02]: threading.Queue (not asyncio.Queue) is the thread-safe bridge between async FastAPI handler and blocking TTS daemon thread
 - [02-02]: WasapiSettings applied conditionally — query host API, only WASAPI devices get auto_convert=True (MME devices get PaErrorCode -9984 if applied)
 - [quick-1]: speech_mode fail-open: stop_hook GETs /config with 2s timeout; if unreachable or field absent, falls through to auto behavior so audio still plays during service startup
+- [quick-2]: _voice_items nested inside build_tray_icon to close over on_config_change — _piper_dir() at module level since it has no state dependency
 
 ### Pending Todos
 
@@ -84,9 +85,10 @@ Recent decisions affecting current work:
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 1 | Semi-automatic speech mode with /speak command and /agenttalk:mode toggle | 2026-02-26 | c5e7adb | [1-semi-automatic-speech-mode-with-speak-co](.planning/quick/1-semi-automatic-speech-mode-with-speak-co/) |
+| 2 | Tray Model submenu (kokoro/piper) and context-aware Voice submenu per engine | 2026-02-26 | 0e7ab0f | [2-tray-icon-model-selection-and-per-model-](.planning/quick/2-tray-icon-model-selection-and-per-model-/) |
 
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Quick task 1 complete — speech_mode toggle, /agenttalk:speak, /agenttalk:mode, config option 6
+Stopped at: Quick task 2 complete — tray Model submenu, context-aware Voice submenu, on_config_change persists selections
 Resume file: None
