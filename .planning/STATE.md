@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-02-26)
 Phase: 5 of 6 (Configuration, Voice/Model Switching, and Slash Commands) — IN PROGRESS
 Plan: 1 of 3 complete (05-01 done)
 Status: Wave 1 complete — save_config, /config + /stop endpoints, STATE engine keys added
-Last activity: 2026-02-26 — Phase 5 Plan 01 complete: config persistence and service control endpoints
+Last activity: 2026-02-26 - Completed quick task 1: semi-automatic speech mode with /speak command and /agenttalk:mode toggle
 
 Progress: [████░░░░░░] 33%
 
@@ -78,6 +78,12 @@ Recent decisions affecting current work:
 
 - [Phase 3]: SessionStart hook matcher syntax (`source: "startup"`) should be verified against live Claude Code version during Phase 3
 - [Phase 4]: Python 3.11 must be installed before pystray integration (3.12 GIL crash)
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 1 | Semi-automatic speech mode with /speak command and /agenttalk:mode toggle | 2026-02-26 | c5e7adb | [1-semi-automatic-speech-mode-with-speak-co](.planning/quick/1-semi-automatic-speech-mode-with-speak-co/) |
 
 ## Session Continuity
 
