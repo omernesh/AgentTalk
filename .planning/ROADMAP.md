@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 2: FastAPI HTTP Server and TTS Queue** - Expose the /speak endpoint, wire up the bounded audio queue, add sentence chunking and text preprocessing
 - [ ] **Phase 3: Claude Code Hook Integration** - Connect Stop and SessionStart hooks for end-to-end speech from Claude Code output
 - [ ] **Phase 4: System Tray UX, Audio Ducking, and Cues** - Add the pystray tray icon, mute toggle, speaking indicator, audio ducking, and pre/post audio cues
-- [ ] **Phase 5: Configuration, Voice/Model Switching, and Slash Commands** - Persist settings in APPDATA, expose all slash commands, enable voice and model switching
+- [x] **Phase 5: Configuration, Voice/Model Switching, and Slash Commands** - Persist settings in APPDATA, expose all slash commands, enable voice and model switching (completed 2026-02-26)
 - [ ] **Phase 6: Installation Script, Packaging, and Documentation** - Ship pip install agenttalk, agenttalk setup, desktop shortcut, and complete README
 
 ## Phase Details
@@ -86,7 +86,12 @@ Plans:
   3. Running `/agenttalk:model piper` switches the TTS engine and the next utterance is synthesized with Piper
   4. After changing the voice via slash command and restarting the service, the same voice is active (setting persisted in config.json)
   5. `%APPDATA%\AgentTalk\config.json` exists and contains all persisted settings: voice, speed, volume, model, mute state, cue paths
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [x] 05-01-PLAN.md — Config persistence (save_config), POST /config + /stop endpoints, full STATE hydration (completed 2026-02-26)
+- [x] 05-02-PLAN.md — Piper engine wrapper (piper_engine.py) + _get_active_engine dispatcher in tts_worker (completed 2026-02-26)
+- [x] 05-03-PLAN.md — Four slash command .md files in agenttalk/commands/ (completed 2026-02-26)
 
 ### Phase 6: Installation Script, Packaging, and Documentation
 **Goal**: A developer on a clean Windows 11 machine runs two commands (pip install agenttalk, agenttalk setup) and AgentTalk is fully installed with hooks registered, model downloaded, desktop shortcut created, and no admin rights required
@@ -111,5 +116,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 | 2. FastAPI HTTP Server and TTS Queue | 0/TBD | Not started | - |
 | 3. Claude Code Hook Integration | 0/TBD | Not started | - |
 | 4. System Tray UX, Audio Ducking, and Cues | 0/TBD | Not started | - |
-| 5. Configuration, Voice/Model Switching, and Slash Commands | 0/TBD | Not started | - |
+| 5. Configuration, Voice/Model Switching, and Slash Commands | 3/3 | Complete | 2026-02-26 |
 | 6. Installation Script, Packaging, and Documentation | 0/TBD | Not started | - |
