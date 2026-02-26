@@ -29,6 +29,8 @@ let statusBarItem: vscode.StatusBarItem;
 let healthCheckTimer: NodeJS.Timeout | undefined;
 let isServiceOnline = false;
 let isMuted = false;
+/** Tracks extension IDs that have been successfully hooked to prevent duplicate listeners. */
+const hookedExtensionIds = new Set<string>();
 
 // ---------------------------------------------------------------------------
 // HTTP helpers (zero dependencies — avoids bundler complexity)
@@ -236,8 +238,15 @@ const AI_EXTENSION_IDS = [
 /**
  * Try to hook into an AI extension's exported API to intercept responses.
  * This is best-effort — the API shape varies per extension version.
+ * Returns false immediately if the extension has already been hooked to prevent
+ * duplicate event listener registration on repeated hookAllAiExtensions() calls.
  */
 async function hookAiExtension(extensionId: string): Promise<boolean> {
+  // Guard: skip if already hooked — duplicate listeners cause duplicate speech events
+  if (hookedExtensionIds.has(extensionId)) {
+    return true;
+  }
+
   const ext = vscode.extensions.getExtension(extensionId);
   if (!ext) {
     return false;
@@ -270,6 +279,7 @@ async function hookAiExtension(extensionId: string): Promise<boolean> {
           speakText(msg.text);
         }
       });
+      hookedExtensionIds.add(extensionId);
       return true;
     }
 
@@ -282,6 +292,7 @@ async function hookAiExtension(extensionId: string): Promise<boolean> {
           speakText(response.text);
         }
       });
+      hookedExtensionIds.add(extensionId);
       return true;
     }
 
@@ -459,4 +470,5 @@ export function deactivate(): void {
     clearInterval(healthCheckTimer);
     healthCheckTimer = undefined;
   }
+  hookedExtensionIds.clear();
 }

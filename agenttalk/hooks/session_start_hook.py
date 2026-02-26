@@ -24,11 +24,13 @@ except Exception:
     # Fallback: use platform-appropriate path without importing config_loader
     _system = platform.system()
     if _system == "Windows":
-        CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "AgentTalk"
+        _appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
+        CONFIG_DIR = Path(_appdata) / "AgentTalk"
     elif _system == "Darwin":
         CONFIG_DIR = Path.home() / "Library" / "Application Support" / "AgentTalk"
     else:
-        CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "AgentTalk"
+        _xdg = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+        CONFIG_DIR = Path(_xdg) / "AgentTalk"
 
 PID_FILE = CONFIG_DIR / "service.pid"
 # These two files are written by `agenttalk setup` (Plan 02).

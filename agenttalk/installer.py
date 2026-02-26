@@ -18,6 +18,7 @@ import os
 import platform
 import subprocess
 import sys
+import xml.sax.saxutils
 from pathlib import Path
 
 import requests
@@ -229,6 +230,10 @@ def _register_autostart_windows() -> None:
     python_exe = sys.executable
     task_name = "AgentTalk"
 
+    # XML-escape the executable path so characters like &, <, > in paths
+    # (unusual but possible) do not corrupt the Task Scheduler XML document.
+    python_exe_xml = xml.sax.saxutils.escape(python_exe)
+
     # Build a minimal Task Scheduler XML
     task_xml = f"""\
 <?xml version="1.0" encoding="UTF-16"?>
@@ -240,7 +245,7 @@ def _register_autostart_windows() -> None:
   </Triggers>
   <Actions Context="Author">
     <Exec>
-      <Command>{python_exe}</Command>
+      <Command>{python_exe_xml}</Command>
       <Arguments>-m agenttalk.service</Arguments>
     </Exec>
   </Actions>
@@ -292,9 +297,11 @@ def _register_autostart_macos() -> None:
     agents_dir.mkdir(parents=True, exist_ok=True)
 
     plist_path = agents_dir / "ai.agenttalk.plist"
+    # XML-escape path values so special characters (&, <, >) in unusual
+    # installation paths do not produce malformed plist XML.
     plist_content = _LAUNCHD_PLIST.format(
-        python=python_exe,
-        log_dir=str(log_dir),
+        python=xml.sax.saxutils.escape(python_exe),
+        log_dir=xml.sax.saxutils.escape(str(log_dir)),
     )
     plist_path.write_text(plist_content, encoding="utf-8")
     print(f"  LaunchAgent plist written to {plist_path}")

@@ -23,11 +23,13 @@ except Exception:
     # Fallback: compute without importing agenttalk
     _system = platform.system()
     if _system == "Windows":
-        CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "AgentTalk"
+        _appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
+        CONFIG_DIR = Path(_appdata) / "AgentTalk"
     elif _system == "Darwin":
         CONFIG_DIR = Path.home() / "Library" / "Application Support" / "AgentTalk"
     else:
-        CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "AgentTalk"
+        _xdg = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+        CONFIG_DIR = Path(_xdg) / "AgentTalk"
 
 PID_FILE = CONFIG_DIR / "service.pid"
 SERVICE_PATH_FILE = CONFIG_DIR / "service_path.txt"
@@ -49,7 +51,10 @@ def _service_is_running() -> bool:
         return False
     except PermissionError:
         return True
-    except (ValueError, Exception):
+    except ValueError as exc:
+        print(f"[agenttalk opencode hook] Corrupt PID file — ignoring: {exc}", file=sys.stderr)
+        return False
+    except Exception:
         return False
 
 

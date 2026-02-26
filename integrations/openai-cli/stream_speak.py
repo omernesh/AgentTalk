@@ -37,14 +37,10 @@ def _post_speak(text: str, port: int = 5050) -> None:
     try:
         with urllib.request.urlopen(req, timeout=3) as _:
             pass
-    except (urllib.error.URLError, Exception):
-        pass  # TTS failure never interrupts text output
-
-
-def _sentence_complete(text: str) -> bool:
-    """Heuristic: True if text ends with a sentence-ending character."""
-    stripped = text.rstrip()
-    return bool(stripped) and stripped[-1] in ".!?:"
+    except urllib.error.URLError:
+        pass  # Service offline or busy — silent fail by design
+    except Exception as exc:
+        print(f"[agenttalk pipe] Unexpected error posting to /speak: {exc}", file=sys.stderr)
 
 
 def main() -> None:
@@ -108,25 +104,19 @@ def main() -> None:
                 print(delta, end="", flush=True)
                 buffer += delta
 
-                # Speak when we have a complete sentence
-                # Split on sentence boundaries and speak complete sentences
-                # Keep the incomplete last fragment in the buffer
-                sentences = []
-                remaining = buffer
-                for sep in (".", "!", "?", ":"):
-                    parts = remaining.split(sep)
-                    if len(parts) > 1:
-                        for part in parts[:-1]:
-                            sentence = (part + sep).strip()
-                            if sentence:
-                                sentences.append(sentence)
-                        remaining = parts[-1]
-                        break
-
-                for sentence in sentences:
-                    if sentence.strip():
-                        _post_speak(sentence, port=args.port)
-                buffer = remaining
+                # Speak complete sentences as they accumulate.
+                # Scan the buffer character-by-character for sentence-ending
+                # punctuation so all separator types are handled in a single pass
+                # (the previous per-separator loop broke after the first match,
+                # leaving subsequent sentence boundaries unprocessed).
+                last_cut = 0
+                for idx, ch in enumerate(buffer):
+                    if ch in ".!?:" and idx + 1 < len(buffer) and buffer[idx + 1] == " ":
+                        sentence = buffer[last_cut:idx + 1].strip()
+                        if sentence:
+                            _post_speak(sentence, port=args.port)
+                        last_cut = idx + 1
+                buffer = buffer[last_cut:]
 
     # Speak any remaining buffer content
     if buffer.strip():
