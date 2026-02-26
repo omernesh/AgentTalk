@@ -21,8 +21,9 @@ def main() -> None:
     raw = sys.stdin.buffer.read()
     try:
         payload = json.loads(raw.decode('utf-8'))
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        sys.exit(0)  # Malformed input — silent fail, never block
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        print(f"[agenttalk stop_hook] Failed to parse stdin: {exc}", file=sys.stderr)
+        sys.exit(0)  # Malformed input — never block
 
     # HOOK-01: Guard against infinite loop.
     # Claude Code re-fires Stop hooks when a hook continuation runs.
@@ -48,8 +49,8 @@ def main() -> None:
             pass
     except urllib.error.URLError:
         pass  # Service not running or 503 warmup — silent fail
-    except Exception:
-        pass  # Any other error — silent fail
+    except Exception as exc:
+        print(f"[agenttalk stop_hook] Unexpected error: {exc}", file=sys.stderr)
 
     sys.exit(0)  # HOOK-03: Exit immediately; async: true handles non-blocking
 

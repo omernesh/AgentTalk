@@ -39,6 +39,9 @@ def _service_is_running() -> bool:
         return False
     except PermissionError:
         return True  # Process exists — we just don't have permission to signal it
+    except ValueError as exc:
+        print(f"[agenttalk session_start_hook] Corrupt PID file — ignoring: {exc}", file=sys.stderr)
+        return False
     except Exception:
         return False
 
@@ -48,7 +51,8 @@ def main() -> None:
     raw = sys.stdin.buffer.read()
     try:
         payload = json.loads(raw.decode('utf-8'))
-    except Exception:
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        print(f"[agenttalk session_start_hook] Failed to parse stdin: {exc}", file=sys.stderr)
         sys.exit(0)
 
     # HOOK-02: Only auto-launch on fresh sessions.
@@ -80,8 +84,10 @@ def main() -> None:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
-    except Exception:
-        pass  # HOOK-03: Never block Claude Code session startup — silent fail
+    except FileNotFoundError as exc:
+        print(f"[agenttalk session_start_hook] Setup files missing — run 'agenttalk setup': {exc}", file=sys.stderr)
+    except Exception as exc:
+        print(f"[agenttalk session_start_hook] Failed to launch service: {exc}", file=sys.stderr)
 
     sys.exit(0)
 
