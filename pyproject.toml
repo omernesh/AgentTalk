@@ -4,20 +4,26 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agenttalk"
-version = "1.0.0"
-description = "Real-time TTS for Claude Code output — offline, local, no API keys"
+version = "1.1.0"
+description = "Real-time TTS for AI coding agents — offline, local, no API keys"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
 authors = [{ name = "omern" }]
-keywords = ["tts", "claude", "claude-code", "text-to-speech", "kokoro"]
+keywords = ["tts", "claude", "claude-code", "text-to-speech", "kokoro", "ai-agent", "voice"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Environment :: No Input/Output (Daemon)",
 ]
 dependencies = [
     "kokoro-onnx==0.5.0",
@@ -27,11 +33,23 @@ dependencies = [
     "psutil>=5.9",
     "pysbd==0.3.4",
     "pystray>=0.19.5",
-    "pycaw>=20251023",
+    "pycaw>=20251023; platform_system=='Windows'",
     "requests>=2.31",
     "tqdm>=4.66",
     "pywin32>=306; platform_system=='Windows'",
     "winshell>=0.6; platform_system=='Windows'",
+]
+
+[project.optional-dependencies]
+# Linux: pystray requires GTK/AppIndicator — install via system package manager
+# (sudo apt install python3-gi gir1.2-appindicator3-0.1) then pip install pystray[gtk]
+linux = [
+    "pystray[gtk]>=0.19.5",
+]
+# Development and packaging tools
+dev = [
+    "build>=1.0",
+    "twine>=5.0",
 ]
 
 [project.scripts]
@@ -40,6 +58,7 @@ agenttalk = "agenttalk.cli:main"
 [project.urls]
 Homepage = "https://github.com/omernesh/AgentTalk"
 Repository = "https://github.com/omernesh/AgentTalk"
+"Bug Tracker" = "https://github.com/omernesh/AgentTalk/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]
