@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-02-26T01:22:06.274Z"
+status: in_progress
+last_updated: "2026-02-26T01:43:37Z"
 progress:
-  total_phases: 1
+  total_phases: 6
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 4
+  completed_plans: 3
 ---
 
 # Project State
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-26)
 
 **Core value:** Claude Code's output is heard in real-time through a local TTS engine, hands-free, without leaving the terminal or touching a mouse.
-**Current focus:** Phase 1 - Service Skeleton and Core Audio
+**Current focus:** Phase 2 - FastAPI HTTP Server and TTS Queue
 
 ## Current Position
 
-Phase: 1 of 6 (Service Skeleton and Core Audio) — COMPLETE
-Plan: 2 of 2 complete
-Status: Phase 1 done — ready for Phase 2 planning
-Last activity: 2026-02-26 — Phase 1 complete: all 7 requirements satisfied, audio plays
+Phase: 2 of 6 (FastAPI HTTP Server and TTS Queue) — In Progress
+Plan: 1 of 2 complete (02-01 done, 02-02 pending)
+Status: Phase 2 executing — preprocessor complete, TTS worker + /speak endpoint next
+Last activity: 2026-02-26 — 02-01 complete: text preprocessing pipeline, 25 tests passing
 
-Progress: [██░░░░░░░░] 17%
+Progress: [███░░░░░░░] 25%
 
 ## Performance Metrics
 
@@ -41,9 +41,10 @@ Progress: [██░░░░░░░░] 17%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | Phase 1 | 2/2 | 22 min | 11 min |
+| Phase 2 | 1/2 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 7 min, 15 min
+- Last 5 plans: 7 min, 15 min, 3 min
 - Trend: steady
 
 *Updated after each plan completion*
@@ -62,6 +63,9 @@ Recent decisions affecting current work:
 - [01-01]: espeakng-loader DLL VALIDATED — imports cleanly on Windows 11 without VCRUNTIME error; blocker cleared
 - [01-02]: WasapiSettings NOT used — causes PaErrorCode -9984 on MME devices; PortAudio/MME handles 24000 Hz resampling automatically
 - [01-02]: Kokoro sample rate confirmed 24000 Hz; total startup time ~5s (1.6s load + 0.7s warmup + 2s playback)
+- [02-01]: Markdown link extraction must precede bare URL stripping — https?://\S+ consumes URL inside [text](url) breaking link regex
+- [02-01]: pysbd.Segmenter() instantiated per-call in segment_sentences() for thread safety under concurrent FastAPI requests
+- [02-01]: is_speakable 40% alpha threshold: short-key JSON like {"k":1} (14%) filtered; verbose-key JSON like {"key":"value"} (50%) passes — acceptable
 
 ### Pending Todos
 
@@ -75,5 +79,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Phase 1 complete — service running on localhost:5050, audio plays, /health 200. All 7 requirements satisfied.
+Stopped at: Completed 02-01-PLAN.md — preprocessor.py + tests ready, proceeding to 02-02
 Resume file: None

@@ -16,8 +16,8 @@
 ### Audio Pipeline
 
 - [ ] **AUDIO-01**: Text is sentence-chunked before synthesis — first sentence begins playing while remaining sentences synthesize
-- [ ] **AUDIO-02**: Text preprocessing pipeline strips fenced code blocks, inline code, URLs, file paths, and markdown markers before TTS
-- [ ] **AUDIO-03**: Sentences with fewer than 40% alphabetic characters are silently skipped (avoids reading symbols, JSON, etc.)
+- [x] **AUDIO-02**: Text preprocessing pipeline strips fenced code blocks, inline code, URLs, file paths, and markdown markers before TTS
+- [x] **AUDIO-03**: Sentences with fewer than 40% alphabetic characters are silently skipped (avoids reading symbols, JSON, etc.)
 - [ ] **AUDIO-04**: Incoming TTS requests are queued (bounded, max 3 pending); overflow is dropped to prevent runaway audio
 - [ ] **AUDIO-05**: WASAPI `auto_convert=True` is set to handle sample rate mismatches on Windows audio devices
 - [ ] **AUDIO-06**: User can adjust TTS output volume via configuration and slash command
@@ -132,8 +132,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SVC-02 | Phase 2 | Pending |
 | SVC-03 | Phase 2 | Pending |
 | AUDIO-01 | Phase 2 | Pending |
-| AUDIO-02 | Phase 2 | Pending |
-| AUDIO-03 | Phase 2 | Pending |
+| AUDIO-02 | Phase 2 | Complete |
+| AUDIO-03 | Phase 2 | Complete |
 | AUDIO-04 | Phase 2 | Pending |
 | AUDIO-05 | Phase 2 | Pending |
 | AUDIO-06 | Phase 2 | Pending |
