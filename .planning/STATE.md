@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-02-26)
 Phase: 5 of 6 (Configuration, Voice/Model Switching, and Slash Commands) — IN PROGRESS
 Plan: 1 of 3 complete (05-01 done)
 Status: Wave 1 complete — save_config, /config + /stop endpoints, STATE engine keys added
-Last activity: 2026-02-26 - Completed quick task 2: tray Model submenu and context-aware Voice submenu (kokoro/piper)
+Last activity: 2026-02-26 - Completed quick task 3 (full mode): cross-platform multi-tool community expansion
 
 Progress: [████░░░░░░] 33%
 
@@ -86,11 +86,11 @@ Recent decisions affecting current work:
 
 ### Quick Tasks Completed
 
-| # | Description | Date | Commit | Directory |
-|---|-------------|------|--------|-----------|
-| 1 | Semi-automatic speech mode with /speak command and /agenttalk:mode toggle | 2026-02-26 | c5e7adb | [1-semi-automatic-speech-mode-with-speak-co](.planning/quick/1-semi-automatic-speech-mode-with-speak-co/) |
-| 2 | Tray Model submenu (kokoro/piper) and context-aware Voice submenu per engine | 2026-02-26 | 691966d | [2-tray-icon-model-selection-and-per-model-](.planning/quick/2-tray-icon-model-selection-and-per-model-/) |
-| 3 | Cross-platform service + PyPI v1.1.0 + OpenClaw + VSCode extension + opencode + OpenAI CLI pipe | 2026-02-26 | 7d0241f | [3-community-expansion-cross-platform-mul](.planning/quick/3-community-expansion-cross-platform-mul/) |
+| # | Description | Date | Commit | Status | Directory |
+|---|-------------|------|--------|--------|-----------|
+| 1 | Semi-automatic speech mode with /speak command and /agenttalk:mode toggle | 2026-02-26 | c5e7adb | | [1-semi-automatic-speech-mode-with-speak-co](.planning/quick/1-semi-automatic-speech-mode-with-speak-co/) |
+| 2 | Tray Model submenu (kokoro/piper) and context-aware Voice submenu per engine | 2026-02-26 | 691966d | | [2-tray-icon-model-selection-and-per-model-](.planning/quick/2-tray-icon-model-selection-and-per-model-/) |
+| 3 | Cross-platform service + PyPI v1.1.0 + OpenClaw + VSCode extension + opencode + OpenAI CLI pipe | 2026-02-26 | 25d849b | Gaps | [3-community-expansion-cross-platform-mul](.planning/quick/3-community-expansion-cross-platform-mul/) |
 
 ## Session Continuity
 
