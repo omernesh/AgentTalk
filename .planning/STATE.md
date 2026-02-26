@@ -70,6 +70,10 @@ Recent decisions affecting current work:
 - [02-02]: WasapiSettings applied conditionally — query host API, only WASAPI devices get auto_convert=True (MME devices get PaErrorCode -9984 if applied)
 - [quick-1]: speech_mode fail-open: stop_hook GETs /config with 2s timeout; if unreachable or field absent, falls through to auto behavior so audio still plays during service startup
 - [quick-2]: _voice_items nested inside build_tray_icon to close over on_config_change — _piper_dir() at module level since it has no state dependency
+- [quick-3]: Cross-platform paths use _config_dir() in config_loader.py as single source of truth — all modules import it
+- [quick-3]: OpenClaw has no confirmed PostResponse hook API — SKILL.md uses instruction-based approach
+- [quick-3]: VSCode extension uses child_process.spawn (not exec) for safe service start
+- [quick-3]: pyproject.toml v1.1.0 — pycaw marked Windows-only, OS classifiers updated to OS Independent
 
 ### Pending Todos
 
@@ -86,9 +90,10 @@ Recent decisions affecting current work:
 |---|-------------|------|--------|-----------|
 | 1 | Semi-automatic speech mode with /speak command and /agenttalk:mode toggle | 2026-02-26 | c5e7adb | [1-semi-automatic-speech-mode-with-speak-co](.planning/quick/1-semi-automatic-speech-mode-with-speak-co/) |
 | 2 | Tray Model submenu (kokoro/piper) and context-aware Voice submenu per engine | 2026-02-26 | 691966d | [2-tray-icon-model-selection-and-per-model-](.planning/quick/2-tray-icon-model-selection-and-per-model-/) |
+| 3 | Cross-platform service + PyPI v1.1.0 + OpenClaw + VSCode extension + opencode + OpenAI CLI pipe | 2026-02-26 | 7d0241f | [3-community-expansion-cross-platform-mul](.planning/quick/3-community-expansion-cross-platform-mul/) |
 
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Quick task 2 complete — tray Model submenu, context-aware Voice submenu, on_config_change persists selections
+Stopped at: Quick task 3 complete — cross-platform service, PyPI v1.1.0, OpenClaw SKILL.md, VSCode extension VSIX, opencode hooks, OpenAI CLI pipe
 Resume file: None
