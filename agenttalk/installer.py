@@ -19,7 +19,7 @@ from tqdm import tqdm
 # Paths
 # ---------------------------------------------------------------------------
 
-APPDATA = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+APPDATA = Path(os.environ.get("APPDATA") or (Path.home() / "AppData" / "Roaming"))
 MODELS_DIR = APPDATA / "AgentTalk" / "models"
 
 # Kokoro v1.0 model files — hosted on GitHub releases under the stable tag
@@ -68,6 +68,18 @@ def download_model() -> None:
                 f"\nERROR: Failed to download {filename}: {exc}\n"
                 "If you see HTTP 404, the model URL may have changed.\n"
                 "Check https://github.com/thewh1teagle/kokoro-onnx/releases for the latest URL."
+            )
+            raise
+        except requests.ConnectionError as exc:
+            print(
+                f"\nERROR: Cannot connect to download {filename}: {exc}\n"
+                "Check your internet connection and firewall settings."
+            )
+            raise
+        except requests.Timeout as exc:
+            print(
+                f"\nERROR: Connection timed out while downloading {filename}: {exc}\n"
+                "Check your internet connection and try again."
             )
             raise
 
