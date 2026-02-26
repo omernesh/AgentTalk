@@ -58,7 +58,11 @@ Plans:
   2. Opening Claude Code when the service is not running causes the service to start automatically before the first response
   3. Hooks with non-ASCII characters in the assistant message (e.g., accented letters) are forwarded without UnicodeDecodeError
   4. Neither hook blocks Claude Code's UI — the terminal remains responsive during TTS playback
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Hook scripts (stop_hook.py + session_start_hook.py) + unit tests
+- [ ] 03-02-PLAN.md — Setup module (register_hooks into settings.json) + unit tests
 
 ### Phase 4: System Tray UX, Audio Ducking, and Cues
 **Goal**: The service shows a visible tray icon while running; the icon changes when speaking; right-clicking reveals mute, voice selection, and quit; other audio streams duck during TTS; and optional pre/post audio cues play around each utterance
