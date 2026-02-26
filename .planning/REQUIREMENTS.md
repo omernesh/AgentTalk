@@ -25,12 +25,12 @@
 
 ### Service Architecture
 
-- [ ] **SVC-01**: Service runs as a Windows background process with no console window (pythonw.exe + DETACHED_PROCESS)
+- [x] **SVC-01**: Service runs as a Windows background process with no console window (pythonw.exe + DETACHED_PROCESS)
 - [ ] **SVC-02**: FastAPI HTTP server runs on localhost:5050 in a daemon thread (uvicorn)
 - [ ] **SVC-03**: TTS worker runs in a separate daemon thread consuming from the audio queue
 - [ ] **SVC-04**: pystray tray icon runs on the main thread (Win32 message loop requirement)
 - [ ] **SVC-05**: PID lock file at `%APPDATA%\AgentTalk\service.pid` prevents duplicate instances and enables clean process management
-- [ ] **SVC-06**: All service logs written to `%APPDATA%\AgentTalk\agenttalk.log` (pythonw.exe suppresses stdout; file logging is mandatory)
+- [x] **SVC-06**: All service logs written to `%APPDATA%\AgentTalk\agenttalk.log` (pythonw.exe suppresses stdout; file logging is mandatory)
 - [ ] **SVC-07**: Service catches and logs all startup exceptions before crashing (no silent failures)
 
 ### Claude Code Integration
@@ -125,9 +125,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TTS-01 | Phase 1 | Pending |
 | TTS-02 | Phase 1 | Pending |
 | TTS-03 | Phase 1 | Pending |
-| SVC-01 | Phase 1 | Pending |
+| SVC-01 | Phase 1 | Complete |
 | SVC-05 | Phase 1 | Pending |
-| SVC-06 | Phase 1 | Pending |
+| SVC-06 | Phase 1 | Complete |
 | SVC-07 | Phase 1 | Pending |
 | SVC-02 | Phase 2 | Pending |
 | SVC-03 | Phase 2 | Pending |
