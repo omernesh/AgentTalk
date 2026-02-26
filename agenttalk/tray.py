@@ -80,7 +80,11 @@ def create_image_speaking(size: int = 64) -> Image.Image:
     return image
 
 
-def build_tray_icon(state: dict, on_quit: Callable[[], None] | None = None) -> pystray.Icon:
+def build_tray_icon(
+    state: dict,
+    on_quit: Callable[[], None] | None = None,
+    on_mute_change: Callable[[], None] | None = None,
+) -> pystray.Icon:
     """
     Build and return a pystray.Icon with the AgentTalk tray menu.
 
@@ -106,6 +110,11 @@ def build_tray_icon(state: dict, on_quit: Callable[[], None] | None = None) -> p
 
     def _toggle_mute(icon, item=None):
         state["muted"] = not state["muted"]
+        if on_mute_change is not None:
+            try:
+                on_mute_change()
+            except Exception:
+                logging.warning("on_mute_change callback raised exception", exc_info=True)
         icon.update_menu()
 
     def _set_voice(voice):

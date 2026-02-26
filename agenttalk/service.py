@@ -541,9 +541,18 @@ def main() -> None:
             # sys.exit() raises SystemExit which daemon threads can swallow.
             os._exit(0)
 
+        def _on_mute_change() -> None:
+            """Called after every Mute toggle. Stops audio immediately when muting."""
+            if STATE["muted"]:
+                sd.stop()  # Interrupt the current sentence immediately
+            try:
+                save_config(STATE)
+            except OSError:
+                logging.warning("save_config() failed after mute toggle.", exc_info=True)
+
         # Build tray icon (does NOT run — just constructs the pystray.Icon object).
         # STATE is imported from tts_worker; tray menu reads muted and voice from it.
-        icon = build_tray_icon(state=STATE, on_quit=_on_quit)
+        icon = build_tray_icon(state=STATE, on_quit=_on_quit, on_mute_change=_on_mute_change)
 
         def _setup(icon: pystray.Icon) -> None:
             """
