@@ -85,7 +85,11 @@ class TestStopHook:
         mock_urlopen.assert_not_called()
 
     def test_stop_hook_non_ascii_payload(self):
-        """Non-ASCII UTF-8 payloads must not raise UnicodeDecodeError and urlopen IS called."""
+        """Non-ASCII UTF-8 payloads must not raise UnicodeDecodeError and urlopen IS called.
+
+        urlopen is called twice: once for GET /config (semi-auto guard) and once
+        for POST /speak. Both calls must succeed for audio to play in auto mode.
+        """
         stop_hook = _load_hook('stop_hook')
         payload = {
             'stop_hook_active': False,
@@ -99,6 +103,7 @@ class TestStopHook:
         mock_response = MagicMock()
         mock_response.__enter__ = lambda s: s
         mock_response.__exit__ = MagicMock(return_value=False)
+        mock_response.read.return_value = b'{"speech_mode": "auto"}'
 
         with patch.object(sys, 'stdin', mock_stdin), \
              patch('urllib.request.urlopen', return_value=mock_response) as mock_urlopen:
@@ -106,10 +111,15 @@ class TestStopHook:
                 stop_hook.main()
 
         assert exc_info.value.code == 0
-        mock_urlopen.assert_called_once()
+        # Called twice: GET /config (semi-auto guard) + POST /speak
+        assert mock_urlopen.call_count == 2
 
     def test_stop_hook_posts_correct_body(self):
-        """urlopen must be called with correct URL and body containing the message text."""
+        """urlopen must be called with correct URL and body containing the message text.
+
+        The first call is GET /config (semi-auto guard, returns auto mode).
+        The second call is POST /speak with the message text as the body.
+        """
         stop_hook = _load_hook('stop_hook')
         payload = {
             'stop_hook_active': False,
@@ -119,14 +129,15 @@ class TestStopHook:
         mock_stdin = MagicMock()
         mock_stdin.buffer = _make_stdin(payload)
 
-        mock_response = MagicMock()
-        mock_response.__enter__ = lambda s: s
-        mock_response.__exit__ = MagicMock(return_value=False)
-
-        captured_request = {}
+        captured_requests = []
 
         def capture_urlopen(req, timeout=None):
-            captured_request['req'] = req
+            mock_response = MagicMock()
+            mock_response.__enter__ = lambda s: s
+            mock_response.__exit__ = MagicMock(return_value=False)
+            # Return auto mode for GET /config so the hook proceeds to POST /speak
+            mock_response.read.return_value = b'{"speech_mode": "auto"}'
+            captured_requests.append(req)
             return mock_response
 
         with patch.object(sys, 'stdin', mock_stdin), \
@@ -135,9 +146,14 @@ class TestStopHook:
                 stop_hook.main()
 
         assert exc_info.value.code == 0
-        req = captured_request['req']
-        assert req.full_url == 'http://localhost:5050/speak'
-        body = json.loads(req.data.decode('utf-8'))
+        # Two calls: GET /config then POST /speak
+        assert len(captured_requests) == 2
+        config_req = captured_requests[0]
+        assert config_req.full_url == 'http://localhost:5050/config'
+        assert config_req.method == 'GET'
+        speak_req = captured_requests[1]
+        assert speak_req.full_url == 'http://localhost:5050/speak'
+        body = json.loads(speak_req.data.decode('utf-8'))
         assert body == {'text': 'Hello world.'}
 
 
