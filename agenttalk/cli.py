@@ -56,8 +56,8 @@ def _cmd_setup(args: argparse.Namespace) -> None:
         print("Fix the error and re-run `agenttalk setup`.")
         sys.exit(1)
 
-    # Step 2: Register hooks in ~/.claude/settings.json
-    print("\nStep 2/3: Registering Claude Code hooks...")
+    # Step 2: Register hooks and slash commands in ~/.claude/
+    print("\nStep 2/4: Registering Claude Code hooks...")
     try:
         from agenttalk.setup import register_hooks
         register_hooks()
@@ -66,8 +66,16 @@ def _cmd_setup(args: argparse.Namespace) -> None:
         print("Fix the error and re-run `agenttalk setup`.")
         sys.exit(1)
 
-    # Step 3: Create icon file and desktop shortcut
-    print("\nStep 3/3: Creating desktop shortcut...")
+    print("\nStep 3/4: Registering slash commands...")
+    try:
+        from agenttalk.setup import register_commands
+        register_commands()
+    except Exception as exc:
+        print(f"\nWARNING registering commands: {exc}")
+        # Non-fatal — user can still use the service without slash commands
+
+    # Step 4: Create icon file and desktop shortcut
+    print("\nStep 4/4: Creating desktop shortcut...")
     try:
         from agenttalk.installer import create_shortcut
         create_shortcut()
@@ -78,6 +86,11 @@ def _cmd_setup(args: argparse.Namespace) -> None:
     print("\nSetup complete!")
     print("Double-click the AgentTalk shortcut on your desktop to start the service.")
     print("Or run: pythonw agenttalk/service.py")
+    print("\nSlash commands available in Claude Code:")
+    print("  /agenttalk:start  — start the service")
+    print("  /agenttalk:stop   — stop the service")
+    print("  /agenttalk:voice  — switch voice (e.g. /agenttalk:voice bm_george)")
+    print("  /agenttalk:model  — switch engine (kokoro or piper)")
 
 
 if __name__ == "__main__":

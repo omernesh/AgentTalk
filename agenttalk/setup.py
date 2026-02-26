@@ -7,6 +7,7 @@ Called by: agenttalk setup CLI command (Phase 6) or directly: python -m agenttal
 """
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -20,6 +21,8 @@ AGENTTALK_DIR = APPDATA / 'AgentTalk'
 # Hook scripts live in agenttalk/hooks/ relative to this file
 _THIS_DIR = Path(__file__).parent
 HOOKS_DIR = _THIS_DIR / 'hooks'
+COMMANDS_SRC_DIR = _THIS_DIR / 'commands'
+COMMANDS_DEST_DIR = Path.home() / '.claude' / 'commands' / 'agenttalk'
 STOP_HOOK_PATH = HOOKS_DIR / 'stop_hook.py'
 SESSION_START_HOOK_PATH = HOOKS_DIR / 'session_start_hook.py'
 SERVICE_PATH = _THIS_DIR / 'service.py'
@@ -187,5 +190,33 @@ def register_hooks(
     print(f"  SessionStart hook: {SESSION_START_HOOK_PATH.resolve()}")
 
 
+def register_commands() -> None:
+    """
+    Copy AgentTalk slash command files to ~/.claude/commands/agenttalk/.
+
+    Claude Code discovers user-level slash commands from ~/.claude/commands/.
+    Commands placed in a subdirectory are namespaced:
+      ~/.claude/commands/agenttalk/stop.md  →  /agenttalk:stop
+      ~/.claude/commands/agenttalk/start.md →  /agenttalk:start
+      ~/.claude/commands/agenttalk/voice.md →  /agenttalk:voice
+      ~/.claude/commands/agenttalk/model.md →  /agenttalk:model
+
+    Idempotent: overwrites existing files on re-run so updates are picked up.
+    """
+    COMMANDS_DEST_DIR.mkdir(parents=True, exist_ok=True)
+    copied = []
+    for src in COMMANDS_SRC_DIR.glob('*.md'):
+        dest = COMMANDS_DEST_DIR / src.name
+        shutil.copy2(src, dest)
+        copied.append(src.stem)
+    if copied:
+        print(f"AgentTalk slash commands registered in {COMMANDS_DEST_DIR}")
+        for name in sorted(copied):
+            print(f"  /agenttalk:{name}")
+    else:
+        print(f"WARNING: No command files found in {COMMANDS_SRC_DIR}")
+
+
 if __name__ == '__main__':
     register_hooks()
+    register_commands()
