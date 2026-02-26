@@ -139,14 +139,38 @@ def _load_and_warmup_kokoro():
 # Audio playback — sounddevice + WASAPI
 # ---------------------------------------------------------------------------
 
+
 def _configure_audio() -> None:
-    """Set WASAPI auto_convert globally to handle 24000 Hz vs device sample rate."""
-    sd.default.extra_settings = sd.WasapiSettings(auto_convert=True)
-    logging.info("sounddevice configured with WasapiSettings(auto_convert=True).")
+    """
+    Configure sounddevice for playback.
+    Probes the default output device to confirm playback capability.
+    WASAPI-specific settings are NOT applied globally — they cause host API mismatch errors
+    when the default device uses MME/DirectSound (PortAudio handles resampling internally).
+    """
+    try:
+        default_out = sd.query_devices(sd.default.device[1])
+        logging.info(
+            "sounddevice default output device: [%d] %s (%s channels, %.0f Hz default rate).",
+            sd.default.device[1],
+            default_out.get("name", "unknown"),
+            default_out.get("max_output_channels", "?"),
+            default_out.get("default_samplerate", 0),
+        )
+    except Exception:
+        logging.info("sounddevice configured (default output device).")
 
 
 def play_audio(samples, sample_rate: int) -> None:
-    """Play numpy audio samples synchronously. sd.wait() is mandatory."""
+    """
+    Play numpy audio samples synchronously through the default output device.
+    sd.wait() is mandatory — without it, audio truncates silently (garbage collection).
+
+    WASAPI note: WasapiSettings(auto_convert=True) is NOT used here — empirical testing
+    shows that PortAudio/MME handles 24000 Hz vs 44100/48000 Hz sample rate conversion
+    automatically on Windows. Applying WasapiSettings to an MME device causes
+    PaErrorCode -9984 (Incompatible host API specific stream info).
+    If WASAPI exclusive mode is needed for a specific device, pass it explicitly.
+    """
     sd.play(samples, samplerate=sample_rate)
     sd.wait()  # Block until playback finishes — do NOT omit; audio truncates silently
 
