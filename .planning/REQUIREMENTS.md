@@ -122,25 +122,64 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TTS-01, TTS-02, TTS-03 | Phase 1 | Pending |
-| SVC-01 – SVC-07 | Phase 1 | Pending |
-| AUDIO-01 – AUDIO-06 | Phase 2 | Pending |
+| TTS-01 | Phase 1 | Pending |
+| TTS-02 | Phase 1 | Pending |
+| TTS-03 | Phase 1 | Pending |
+| SVC-01 | Phase 1 | Pending |
+| SVC-05 | Phase 1 | Pending |
+| SVC-06 | Phase 1 | Pending |
+| SVC-07 | Phase 1 | Pending |
+| SVC-02 | Phase 2 | Pending |
+| SVC-03 | Phase 2 | Pending |
+| AUDIO-01 | Phase 2 | Pending |
+| AUDIO-02 | Phase 2 | Pending |
+| AUDIO-03 | Phase 2 | Pending |
+| AUDIO-04 | Phase 2 | Pending |
+| AUDIO-05 | Phase 2 | Pending |
+| AUDIO-06 | Phase 2 | Pending |
 | TTS-05 | Phase 2 | Pending |
-| HOOK-01 – HOOK-05 | Phase 3 | Pending |
-| TRAY-01 – TRAY-06 | Phase 4 | Pending |
+| HOOK-01 | Phase 3 | Pending |
+| HOOK-02 | Phase 3 | Pending |
+| HOOK-03 | Phase 3 | Pending |
+| HOOK-04 | Phase 3 | Pending |
+| HOOK-05 | Phase 3 | Pending |
+| SVC-04 | Phase 4 | Pending |
+| TRAY-01 | Phase 4 | Pending |
+| TRAY-02 | Phase 4 | Pending |
+| TRAY-03 | Phase 4 | Pending |
+| TRAY-04 | Phase 4 | Pending |
+| TRAY-05 | Phase 4 | Pending |
+| TRAY-06 | Phase 4 | Pending |
 | AUDIO-07 | Phase 4 | Pending |
-| CUE-01 – CUE-04 | Phase 4 | Pending |
-| CMD-01 – CMD-04 | Phase 5 | Pending |
-| CFG-01 – CFG-03 | Phase 5 | Pending |
+| CUE-01 | Phase 4 | Pending |
+| CUE-02 | Phase 4 | Pending |
+| CUE-03 | Phase 4 | Pending |
+| CUE-04 | Phase 4 | Pending |
+| CMD-01 | Phase 5 | Pending |
+| CMD-02 | Phase 5 | Pending |
+| CMD-03 | Phase 5 | Pending |
+| CMD-04 | Phase 5 | Pending |
+| CFG-01 | Phase 5 | Pending |
+| CFG-02 | Phase 5 | Pending |
+| CFG-03 | Phase 5 | Pending |
 | TTS-04 | Phase 5 | Pending |
-| INST-01 – INST-06 | Phase 6 | Pending |
-| DOC-01 – DOC-05 | Phase 6 | Pending |
+| INST-01 | Phase 6 | Pending |
+| INST-02 | Phase 6 | Pending |
+| INST-03 | Phase 6 | Pending |
+| INST-04 | Phase 6 | Pending |
+| INST-05 | Phase 6 | Pending |
+| INST-06 | Phase 6 | Pending |
+| DOC-01 | Phase 6 | Pending |
+| DOC-02 | Phase 6 | Pending |
+| DOC-03 | Phase 6 | Pending |
+| DOC-04 | Phase 6 | Pending |
+| DOC-05 | Phase 6 | Pending |
 
 **Coverage:**
-- v1 requirements: 46 total
-- Mapped to phases: 46
-- Unmapped: 0 ✓
+- v1 requirements: 52 total
+- Mapped to phases: 52
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-26*
-*Last updated: 2026-02-26 after initial definition*
+*Last updated: 2026-02-26 after roadmap creation — all 52 requirements mapped to 6 phases*
