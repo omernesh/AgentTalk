@@ -66,7 +66,7 @@ def _cmd_setup(args: argparse.Namespace) -> None:
         print("Fix the error and re-run `agenttalk setup`.")
         sys.exit(1)
 
-    # Step 3: Create desktop shortcut
+    # Step 3: Create icon file and desktop shortcut
     print("\nStep 3/3: Creating desktop shortcut...")
     try:
         from agenttalk.installer import create_shortcut

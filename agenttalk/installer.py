@@ -111,6 +111,37 @@ def download_model() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Icon file generation
+# ---------------------------------------------------------------------------
+
+ICON_PATH = APPDATA / "AgentTalk" / "icon.ico"
+
+
+def generate_icon_file() -> Path:
+    """
+    Generate AgentTalk.ico to %APPDATA%\\AgentTalk\\icon.ico.
+
+    Creates a multi-resolution .ico from the idle tray image at sizes
+    [16, 32, 48, 64, 128, 256] so Windows displays a crisp icon at every DPI.
+    Returns the path to the generated file.
+    """
+    from agenttalk.tray import create_image_idle  # deferred — avoids circular import at module load
+
+    icon_dir = APPDATA / "AgentTalk"
+    icon_dir.mkdir(parents=True, exist_ok=True)
+
+    sizes = [16, 32, 48, 64, 128, 256]
+    images = [create_image_idle(size=s) for s in sizes]
+    images[0].save(
+        str(ICON_PATH),
+        format="ICO",
+        sizes=[(s, s) for s in sizes],
+        append_images=images[1:],
+    )
+    return ICON_PATH
+
+
+# ---------------------------------------------------------------------------
 # Desktop shortcut
 # ---------------------------------------------------------------------------
 
@@ -152,12 +183,20 @@ def create_shortcut() -> None:
     desktop = Path(winshell.desktop())
     shortcut_path = desktop / "AgentTalk.lnk"
 
+    icon_path = None
+    try:
+        icon_path = generate_icon_file()
+    except Exception as exc:
+        print(f"  NOTE: Could not generate icon file: {exc}")
+
     try:
         with winshell.shortcut(str(shortcut_path)) as link:
             link.path = str(pythonw.resolve())
             link.arguments = f'"{service_py.resolve()}"'
             link.working_directory = str(service_py.parent.resolve())
             link.description = "AgentTalk TTS Service"
+            if icon_path and icon_path.exists():
+                link.icon_location = (str(icon_path), 0)
     except Exception as exc:
         # pywin32 post-install script may not have run — give actionable guidance
         print(

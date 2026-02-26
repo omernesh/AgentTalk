@@ -2,8 +2,8 @@
 tray.py — System tray icon for AgentTalk.
 
 Provides:
-  - create_image_idle(): Blue circle PIL image (64x64) for idle state.
-  - create_image_speaking(): Orange/red circle PIL image (64x64) for speaking state.
+  - create_image_idle(): Dark navy circle with blue waveform bars (64x64).
+  - create_image_speaking(): Dark green circle with bright waveform bars (64x64).
   - build_tray_icon(state, on_quit): Constructs pystray.Icon with full right-click menu.
 
 IMPORTANT: build_tray_icon() does NOT call icon.run() or set icon.visible.
@@ -34,28 +34,49 @@ KOKORO_VOICES = [
 ]
 
 
+def _draw_waveform(
+    dc: ImageDraw.ImageDraw,
+    size: int,
+    bar_color: tuple,
+    heights_frac: list[float],
+) -> None:
+    """Draw 5 equalizer bars centered in the icon canvas."""
+    n = 5
+    bar_w = max(2, round(size * 0.078))   # ~5px at 64,  ~20px at 256
+    gap    = max(1, round(size * 0.063))   # ~4px at 64,  ~16px at 256
+    total_w = n * bar_w + (n - 1) * gap
+    x0 = (size - total_w) // 2
+    for i, frac in enumerate(heights_frac):
+        h = max(2, round(size * frac))
+        x = x0 + i * (bar_w + gap)
+        y = (size - h) // 2
+        dc.rectangle([x, y, x + bar_w - 1, y + h - 1], fill=bar_color)
+
+
 def create_image_idle(size: int = 64) -> Image.Image:
     """
-    Blue circle — idle state icon.
+    Dark navy circle with five blue equalizer bars — idle state.
 
     CRITICAL: Size MUST default to 64. PIL images smaller than ~20px trigger
     "OSError: [WinError 0]" in pystray's LoadImage call (research pitfall #5).
     """
     image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     dc = ImageDraw.Draw(image)
-    dc.ellipse([4, 4, size - 4, size - 4], fill=(30, 120, 200, 255))
+    dc.ellipse([0, 0, size - 1, size - 1], fill=(14, 27, 44, 255))
+    _draw_waveform(dc, size, (91, 200, 245, 255), [0.19, 0.31, 0.47, 0.31, 0.19])
     return image
 
 
 def create_image_speaking(size: int = 64) -> Image.Image:
     """
-    Orange/red circle — TTS actively playing.
+    Dark green circle with taller bright-green bars — TTS actively playing.
 
     CRITICAL: Size MUST default to 64 (see create_image_idle note).
     """
     image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     dc = ImageDraw.Draw(image)
-    dc.ellipse([4, 4, size - 4, size - 4], fill=(220, 80, 20, 255))
+    dc.ellipse([0, 0, size - 1, size - 1], fill=(10, 44, 28, 255))
+    _draw_waveform(dc, size, (46, 213, 115, 255), [0.28, 0.47, 0.69, 0.47, 0.28])
     return image
 
 
