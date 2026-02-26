@@ -1,23 +1,41 @@
 """
-config_loader.py — Read/write %APPDATA%/AgentTalk/config.json.
+config_loader.py — Read/write the platform-appropriate AgentTalk config directory.
 
 Provides load_config() which returns the persisted settings dict.
 Returns {} if the file is absent or malformed — never raises.
 
 Phase 4 consumers: service.py reads pre_cue_path and post_cue_path at startup.
 Phase 5: save_config() added for runtime persistence of all 7 CFG-02 settings fields.
+Quick task 3: _config_dir() made cross-platform (Windows/macOS/Linux).
 """
 import json
 import logging
 import os
+import platform
 import threading
 from pathlib import Path
 
 
+def _config_dir() -> Path:
+    """Return the platform-appropriate AgentTalk config directory.
+
+    Windows : %APPDATA%/AgentTalk/  (e.g. C:/Users/user/AppData/Roaming/AgentTalk/)
+    macOS   : ~/Library/Application Support/AgentTalk/
+    Linux   : $XDG_CONFIG_HOME/AgentTalk/ (fallback: ~/.config/AgentTalk/)
+    """
+    system = platform.system()
+    if system == "Windows":
+        base = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
+    elif system == "Darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:  # Linux + anything else
+        base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+    return base / "AgentTalk"
+
+
 def _config_path() -> Path:
     """Return the platform path to config.json."""
-    appdata = os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))
-    return Path(appdata) / "AgentTalk" / "config.json"
+    return _config_dir() / "config.json"
 
 
 _CONFIG_LOCK = threading.Lock()
