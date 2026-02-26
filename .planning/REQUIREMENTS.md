@@ -7,9 +7,9 @@
 
 ### TTS Engine
 
-- [ ] **TTS-01**: Service loads kokoro-onnx 0.5.0 as the primary TTS engine on startup (fully offline, no API key)
-- [ ] **TTS-02**: Service performs eager model load + warmup synthesis call before accepting requests (avoids 3-8s first-request latency)
-- [ ] **TTS-03**: Service exposes `/health` endpoint returning 503 until model is warm and ready
+- [x] **TTS-01**: Service loads kokoro-onnx 0.5.0 as the primary TTS engine on startup (fully offline, no API key)
+- [x] **TTS-02**: Service performs eager model load + warmup synthesis call before accepting requests (avoids 3-8s first-request latency)
+- [x] **TTS-03**: Service exposes `/health` endpoint returning 503 until model is warm and ready
 - [ ] **TTS-04**: Piper TTS is available as an alternate engine, switchable at runtime via `/agenttalk:model`
 - [ ] **TTS-05**: User can adjust TTS speech speed (rate) via configuration and slash command
 
@@ -29,9 +29,9 @@
 - [ ] **SVC-02**: FastAPI HTTP server runs on localhost:5050 in a daemon thread (uvicorn)
 - [ ] **SVC-03**: TTS worker runs in a separate daemon thread consuming from the audio queue
 - [ ] **SVC-04**: pystray tray icon runs on the main thread (Win32 message loop requirement)
-- [ ] **SVC-05**: PID lock file at `%APPDATA%\AgentTalk\service.pid` prevents duplicate instances and enables clean process management
+- [x] **SVC-05**: PID lock file at `%APPDATA%\AgentTalk\service.pid` prevents duplicate instances and enables clean process management
 - [x] **SVC-06**: All service logs written to `%APPDATA%\AgentTalk\agenttalk.log` (pythonw.exe suppresses stdout; file logging is mandatory)
-- [ ] **SVC-07**: Service catches and logs all startup exceptions before crashing (no silent failures)
+- [x] **SVC-07**: Service catches and logs all startup exceptions before crashing (no silent failures)
 
 ### Claude Code Integration
 
@@ -122,13 +122,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TTS-01 | Phase 1 | Pending |
-| TTS-02 | Phase 1 | Pending |
-| TTS-03 | Phase 1 | Pending |
+| TTS-01 | Phase 1 | Complete |
+| TTS-02 | Phase 1 | Complete |
+| TTS-03 | Phase 1 | Complete |
 | SVC-01 | Phase 1 | Complete |
-| SVC-05 | Phase 1 | Pending |
+| SVC-05 | Phase 1 | Complete |
 | SVC-06 | Phase 1 | Complete |
-| SVC-07 | Phase 1 | Pending |
+| SVC-07 | Phase 1 | Complete |
 | SVC-02 | Phase 2 | Pending |
 | SVC-03 | Phase 2 | Pending |
 | AUDIO-01 | Phase 2 | Pending |

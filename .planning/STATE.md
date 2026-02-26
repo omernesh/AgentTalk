@@ -9,29 +9,29 @@ See: .planning/PROJECT.md (updated 2026-02-26)
 
 ## Current Position
 
-Phase: 1 of 6 (Service Skeleton and Core Audio)
-Plan: 1 of 2 in current phase (01-01 complete, 01-02 next)
-Status: In progress
-Last activity: 2026-02-26 — Plan 01-01 complete: scaffold + dependency validation
+Phase: 1 of 6 (Service Skeleton and Core Audio) — COMPLETE
+Plan: 2 of 2 complete
+Status: Phase 1 done — ready for Phase 2 planning
+Last activity: 2026-02-26 — Phase 1 complete: all 7 requirements satisfied, audio plays
 
-Progress: [█░░░░░░░░░] 8%
+Progress: [██░░░░░░░░] 17%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 7 min
-- Total execution time: 0.1 hours
+- Total plans completed: 2
+- Average duration: 11 min
+- Total execution time: 0.4 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| Phase 1 | 1/2 | 7 min | 7 min |
+| Phase 1 | 2/2 | 22 min | 11 min |
 
 **Recent Trend:**
-- Last 5 plans: 7 min
-- Trend: -
+- Last 5 plans: 7 min, 15 min
+- Trend: steady
 
 *Updated after each plan completion*
 
@@ -47,6 +47,8 @@ Recent decisions affecting current work:
 - [Init]: pystray owns main thread via Icon.run(setup=fn) — uvicorn and TTS worker run as daemon threads
 - [01-01]: Python 3.12 used for Phase 1 (3.11 not installed on dev machine) — pystray incompatibility deferred to Phase 4
 - [01-01]: espeakng-loader DLL VALIDATED — imports cleanly on Windows 11 without VCRUNTIME error; blocker cleared
+- [01-02]: WasapiSettings NOT used — causes PaErrorCode -9984 on MME devices; PortAudio/MME handles 24000 Hz resampling automatically
+- [01-02]: Kokoro sample rate confirmed 24000 Hz; total startup time ~5s (1.6s load + 0.7s warmup + 2s playback)
 
 ### Pending Todos
 
@@ -60,5 +62,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Plan 01-01 complete — scaffold + deps validated. Next: Plan 01-02 (PID lock, Kokoro load, /health endpoint, uvicorn daemon)
+Stopped at: Phase 1 complete — service running on localhost:5050, audio plays, /health 200. All 7 requirements satisfied.
 Resume file: None
