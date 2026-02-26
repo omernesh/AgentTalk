@@ -12,7 +12,7 @@ AgentTalk ships in six phases ordered by risk: validate the Windows threading mo
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Service Skeleton and Core Audio** - Validate the Windows threading model, Kokoro TTS loading, and background process launch before building anything on top
+- [x] **Phase 1: Service Skeleton and Core Audio** - Validate the Windows threading model, Kokoro TTS loading, and background process launch before building anything on top (completed 2026-02-26)
 - [ ] **Phase 2: FastAPI HTTP Server and TTS Queue** - Expose the /speak endpoint, wire up the bounded audio queue, add sentence chunking and text preprocessing
 - [ ] **Phase 3: Claude Code Hook Integration** - Connect Stop and SessionStart hooks for end-to-end speech from Claude Code output
 - [ ] **Phase 4: System Tray UX, Audio Ducking, and Cues** - Add the pystray tray icon, mute toggle, speaking indicator, audio ducking, and pre/post audio cues
@@ -99,7 +99,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5 → 6
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Service Skeleton and Core Audio | 0/TBD | Not started | - |
+| 1. Service Skeleton and Core Audio | 2/2 | Complete | 2026-02-26 |
 | 2. FastAPI HTTP Server and TTS Queue | 0/TBD | Not started | - |
 | 3. Claude Code Hook Integration | 0/TBD | Not started | - |
 | 4. System Tray UX, Audio Ducking, and Cues | 0/TBD | Not started | - |
