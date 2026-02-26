@@ -12,6 +12,8 @@ Both are done by service.py's _setup() callback (research pattern #1).
 Requirements: TRAY-01, TRAY-02, TRAY-03, TRAY-04, TRAY-05, TRAY-06
 """
 import logging
+import os
+from pathlib import Path
 from typing import Callable
 
 import pystray
@@ -80,10 +82,16 @@ def create_image_speaking(size: int = 64) -> Image.Image:
     return image
 
 
+def _piper_dir() -> Path:
+    """Return the Piper models directory path."""
+    return Path(os.environ["APPDATA"]) / "AgentTalk" / "models" / "piper"
+
+
 def build_tray_icon(
     state: dict,
     on_quit: Callable[[], None] | None = None,
     on_mute_change: Callable[[], None] | None = None,
+    on_config_change: Callable[[], None] | None = None,
 ) -> pystray.Icon:
     """
     Build and return a pystray.Icon with the AgentTalk tray menu.
@@ -92,20 +100,28 @@ def build_tray_icon(
     Does NOT set icon.visible — that must be done inside the setup callback.
 
     Args:
-        state: Shared mutable dict with keys 'muted' (bool) and 'voice' (str).
+        state: Shared mutable dict with keys 'muted' (bool), 'voice' (str),
+               'model' (str: 'kokoro' or 'piper'), and 'piper_model_path' (str|None).
                The tray menu reads and writes these keys in real time.
         on_quit: Optional callable invoked when the user selects Quit.
                  Called before icon.stop(). Use for cleanup (e.g., audio unduck).
+        on_mute_change: Optional callable invoked after every Mute toggle.
+                        Use for save_config() and immediate audio stop.
+        on_config_change: Optional callable invoked after model or piper voice
+                          selection from tray. Use for save_config(STATE).
+                          Defaults to None so service.py call sites without this
+                          parameter continue to compile without modification.
 
     Returns:
         pystray.Icon ready to be passed to icon.run(setup=fn).
 
     Menu structure (TRAY-02, TRAY-04, TRAY-05, TRAY-06):
       1. Mute — toggle with checkmark reflecting state['muted']
-      2. Voice — submenu with radio buttons for each KOKORO voice
-      3. Active: {voice} — read-only info item (enabled=False)
-      4. --- separator ---
-      5. Quit — calls on_quit() then icon.stop()
+      2. Model — submenu: kokoro / piper radio buttons
+      3. Voice — submenu: context-aware (Kokoro voices or Piper .onnx stems)
+      4. Active: {voice/stem} — read-only info item (enabled=False)
+      5. --- separator ---
+      6. Quit — calls on_quit() then icon.stop()
     """
 
     def _toggle_mute(icon, item=None):
@@ -123,6 +139,30 @@ def build_tray_icon(
             icon.update_menu()
         return _inner
 
+    def _set_model(model):
+        def _inner(icon, item):
+            state["model"] = model
+            if on_config_change is not None:
+                try:
+                    on_config_change()
+                except Exception:
+                    logging.warning("on_config_change callback raised exception", exc_info=True)
+            icon.update_menu()
+        return _inner
+
+    def _set_piper_voice(stem: str, full_path: str):
+        """Select a Piper voice: set piper_model_path and switch to piper model."""
+        def _inner(icon, item):
+            state["piper_model_path"] = full_path
+            state["model"] = "piper"
+            if on_config_change is not None:
+                try:
+                    on_config_change()
+                except Exception:
+                    logging.warning("on_config_change callback raised", exc_info=True)
+            icon.update_menu()
+        return _inner
+
     def _quit(icon, item=None):
         if on_quit is not None:
             try:
@@ -131,6 +171,40 @@ def build_tray_icon(
                 logging.warning("on_quit callback raised exception", exc_info=True)
         icon.stop()
 
+    def _voice_items():
+        """Generate Voice submenu items based on active model. Called at menu render time."""
+        if state.get("model", "kokoro") == "piper":
+            piper_path = _piper_dir()
+            if piper_path.exists():
+                onnx_files = sorted(piper_path.glob("*.onnx"))
+            else:
+                onnx_files = []
+            if not onnx_files:
+                yield pystray.MenuItem(
+                    "No Piper models found",
+                    lambda icon, item: None,
+                    enabled=False,
+                )
+                return
+            for onnx_path in onnx_files:
+                stem = onnx_path.stem
+                full_path = str(onnx_path)
+                yield pystray.MenuItem(
+                    stem,
+                    _set_piper_voice(stem, full_path),
+                    checked=lambda item, p=full_path: state.get("piper_model_path") == p,
+                    radio=True,
+                )
+        else:
+            # Kokoro mode — static list
+            for voice in KOKORO_VOICES:
+                yield pystray.MenuItem(
+                    voice,
+                    _set_voice(voice),
+                    checked=lambda item, v=voice: state["voice"] == v,
+                    radio=True,
+                )
+
     menu = pystray.Menu(
         # TRAY-02: Mute toggle with dynamic checkmark
         pystray.MenuItem(
@@ -138,24 +212,38 @@ def build_tray_icon(
             _toggle_mute,
             checked=lambda item: state["muted"],
         ),
-        # TRAY-04: Voice submenu — radio buttons for each Kokoro voice
+        # Model submenu — radio buttons for kokoro / piper engine selection
+        pystray.MenuItem(
+            "Model",
+            pystray.Menu(
+                pystray.MenuItem(
+                    "kokoro",
+                    _set_model("kokoro"),
+                    checked=lambda item: state.get("model", "kokoro") == "kokoro",
+                    radio=True,
+                ),
+                pystray.MenuItem(
+                    "piper",
+                    _set_model("piper"),
+                    checked=lambda item: state.get("model", "kokoro") == "piper",
+                    radio=True,
+                ),
+            ),
+        ),
+        # TRAY-04: Voice submenu — context-aware (Kokoro voices or Piper .onnx stems)
         pystray.MenuItem(
             "Voice",
-            pystray.Menu(lambda: (
-                pystray.MenuItem(
-                    voice,
-                    _set_voice(voice),
-                    checked=lambda item, v=voice: state["voice"] == v,
-                    radio=True,
-                )
-                for voice in KOKORO_VOICES
-            )),
+            pystray.Menu(_voice_items),
         ),
-        # TRAY-06: Active voice info item — read-only, always disabled
+        # TRAY-06: Active voice/model info item — read-only, always disabled
         # NOTE: action must be a no-op lambda, NOT None — bare None causes TypeError
         # in some pystray versions (research pitfall #3).
         pystray.MenuItem(
-            lambda item: f'Active: {state["voice"]}',
+            lambda item: (
+                f'Active: {Path(state["piper_model_path"]).stem}'
+                if state.get("model") == "piper" and state.get("piper_model_path")
+                else f'Active: {state["voice"]}'
+            ),
             lambda icon, item: None,
             enabled=False,
         ),

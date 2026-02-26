@@ -646,9 +646,22 @@ def main() -> None:
             except OSError:
                 logging.warning("save_config() failed after mute toggle.", exc_info=True)
 
+        def _on_config_change() -> None:
+            """Called after model or piper voice selection from tray."""
+            try:
+                save_config(STATE)
+            except OSError:
+                logging.warning("save_config() failed after tray config change.", exc_info=True)
+
         # Build tray icon (does NOT run — just constructs the pystray.Icon object).
-        # STATE is imported from tts_worker; tray menu reads muted and voice from it.
-        icon = build_tray_icon(state=STATE, on_quit=_on_quit, on_mute_change=_on_mute_change)
+        # STATE is imported from tts_worker; tray menu reads muted, voice, model, and
+        # piper_model_path from it. on_config_change persists model/voice changes to disk.
+        icon = build_tray_icon(
+            state=STATE,
+            on_quit=_on_quit,
+            on_mute_change=_on_mute_change,
+            on_config_change=_on_config_change,
+        )
 
         def _setup(icon: pystray.Icon) -> None:
             """
