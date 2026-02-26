@@ -259,6 +259,11 @@ class ConfigRequest(BaseModel):
         description="Absolute path to a WAV/MP3 played after each TTS segment.",
         examples=["C:/sounds/done.wav"],
     )
+    piper_model_path: str | None = Field(
+        None,
+        description="Absolute path to a Piper ONNX voice model (.onnx). Required when model='piper'.",
+        examples=["C:/Users/user/AppData/Roaming/AgentTalk/models/piper/en_US-lessac-medium.onnx"],
+    )
 
 
 @asynccontextmanager
@@ -524,7 +529,7 @@ def main() -> None:
         # CFG-01, CFG-02, CFG-03: Restore all persisted settings from config.json at startup.
         # This ensures voice, model, speed, volume, mute, and cue paths survive restarts.
         _cfg = load_config()
-        for _key in ("voice", "speed", "volume", "model", "muted", "pre_cue_path", "post_cue_path"):
+        for _key in ("voice", "speed", "volume", "model", "muted", "pre_cue_path", "post_cue_path", "piper_model_path"):
             if _key in _cfg and _cfg[_key] is not None:
                 STATE[_key] = _cfg[_key]
                 logging.info("Config restored: %s = %s", _key, STATE[_key])

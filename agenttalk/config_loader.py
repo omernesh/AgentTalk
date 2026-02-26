@@ -71,13 +71,14 @@ def save_config(state: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
     persisted = {
-        "voice":         state.get("voice", "af_heart"),
-        "speed":         state.get("speed", 1.0),
-        "volume":        state.get("volume", 1.0),
-        "model":         state.get("model", "kokoro"),
-        "muted":         state.get("muted", False),
-        "pre_cue_path":  state.get("pre_cue_path"),
-        "post_cue_path": state.get("post_cue_path"),
+        "voice":            state.get("voice", "af_heart"),
+        "speed":            state.get("speed", 1.0),
+        "volume":           state.get("volume", 1.0),
+        "model":            state.get("model", "kokoro"),
+        "muted":            state.get("muted", False),
+        "pre_cue_path":     state.get("pre_cue_path"),
+        "post_cue_path":    state.get("post_cue_path"),
+        "piper_model_path": state.get("piper_model_path"),
     }
 
     tmp = path.with_suffix(".json.tmp")
