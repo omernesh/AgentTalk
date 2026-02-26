@@ -72,20 +72,20 @@
 
 ### Installation & Packaging
 
-- [ ] **INST-01**: `pip install agenttalk` installs the package and CLI entry point
-- [ ] **INST-02**: `agenttalk setup` downloads the Kokoro ONNX model (~310MB) to `%APPDATA%\AgentTalk\models\` with a progress bar
-- [ ] **INST-03**: `agenttalk setup` registers the Stop and SessionStart hooks in `~/.claude/settings.json` without overwriting existing hooks
-- [ ] **INST-04**: `agenttalk setup` creates a desktop shortcut (.lnk) pointing to the AgentTalk service launcher
-- [ ] **INST-05**: `agenttalk setup` writes hook scripts using the absolute path to the venv's pythonw.exe (avoids PATH resolution failures)
-- [ ] **INST-06**: Install process works without administrator rights on Windows 11
+- [x] **INST-01**: `pip install agenttalk` installs the package and CLI entry point
+- [x] **INST-02**: `agenttalk setup` downloads the Kokoro ONNX model (~310MB) to `%APPDATA%\AgentTalk\models\` with a progress bar
+- [x] **INST-03**: `agenttalk setup` registers the Stop and SessionStart hooks in `~/.claude/settings.json` without overwriting existing hooks
+- [x] **INST-04**: `agenttalk setup` creates a desktop shortcut (.lnk) pointing to the AgentTalk service launcher
+- [x] **INST-05**: `agenttalk setup` writes hook scripts using the absolute path to the venv's pythonw.exe (avoids PATH resolution failures)
+- [x] **INST-06**: Install process works without administrator rights on Windows 11
 
 ### Documentation
 
-- [ ] **DOC-01**: README covers installation, quickstart (3 commands to working audio), available voices list, all slash commands, and tray menu usage
-- [ ] **DOC-02**: README includes a troubleshooting section covering: WASAPI exclusive mode conflicts, Kokoro model download issues, Python version requirements (3.11 only), hook registration verification
-- [ ] **DOC-03**: README is updated with every feature addition — no feature ships without doc coverage
-- [ ] **DOC-04**: Repository includes MIT LICENSE file
-- [ ] **DOC-05**: Repository is published publicly at github.com/omern/AgentTalk
+- [x] **DOC-01**: README covers installation, quickstart (3 commands to working audio), available voices list, all slash commands, and tray menu usage
+- [x] **DOC-02**: README includes a troubleshooting section covering: WASAPI exclusive mode conflicts, Kokoro model download issues, Python version requirements (3.11 only), hook registration verification
+- [x] **DOC-03**: README is updated with every feature addition — no feature ships without doc coverage
+- [x] **DOC-04**: Repository includes MIT LICENSE file
+- [x] **DOC-05**: Repository is published publicly at github.com/omern/AgentTalk
 
 ## v2 Requirements
 
@@ -163,17 +163,17 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CFG-02 | Phase 5 | Pending |
 | CFG-03 | Phase 5 | Pending |
 | TTS-04 | Phase 5 | Pending |
-| INST-01 | Phase 6 | Pending |
-| INST-02 | Phase 6 | Pending |
-| INST-03 | Phase 6 | Pending |
-| INST-04 | Phase 6 | Pending |
-| INST-05 | Phase 6 | Pending |
-| INST-06 | Phase 6 | Pending |
-| DOC-01 | Phase 6 | Pending |
-| DOC-02 | Phase 6 | Pending |
-| DOC-03 | Phase 6 | Pending |
-| DOC-04 | Phase 6 | Pending |
-| DOC-05 | Phase 6 | Pending |
+| INST-01 | Phase 6 | Complete |
+| INST-02 | Phase 6 | Complete |
+| INST-03 | Phase 6 | Complete |
+| INST-04 | Phase 6 | Complete |
+| INST-05 | Phase 6 | Complete |
+| INST-06 | Phase 6 | Complete |
+| DOC-01 | Phase 6 | Complete |
+| DOC-02 | Phase 6 | Complete |
+| DOC-03 | Phase 6 | Complete |
+| DOC-04 | Phase 6 | Complete |
+| DOC-05 | Phase 6 | Complete |
 
 **Coverage:**
 - v1 requirements: 52 total
