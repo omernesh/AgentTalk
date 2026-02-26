@@ -32,14 +32,34 @@ CPU work and must never be called in the async FastAPI handler.
 """
 
 import logging
+import platform
 import queue
 import threading
-import winsound
 
 import numpy as np
 import sounddevice as sd
 
-from agenttalk.audio_duck import AudioDucker
+if platform.system() == "Windows":
+    import winsound
+    from agenttalk.audio_duck import AudioDucker
+else:
+    winsound = None  # type: ignore[assignment]
+
+    class _NoOpDucker:
+        """No-op stub used on non-Windows platforms where WASAPI ducking is unavailable."""
+
+        def duck(self) -> None:
+            pass
+
+        def unduck(self) -> None:
+            pass
+
+        @property
+        def is_ducked(self) -> bool:
+            return False
+
+    AudioDucker = _NoOpDucker  # type: ignore[misc,assignment]
+
 from agenttalk.tray import create_image_idle, create_image_speaking
 
 
@@ -133,12 +153,16 @@ def play_cue(path: str | None) -> None:
     """
     Play a WAV audio cue synchronously. No-op if path is None or empty.
 
-    Uses winsound.SND_FILENAME (blocking) — the cue must finish before TTS begins.
+    Uses winsound.SND_FILENAME (blocking) on Windows — the cue must finish before TTS begins.
     DO NOT use SND_ASYNC; async playback overlaps with speech synthesis.
+    On non-Windows platforms, cue playback is silently skipped (winsound unavailable).
 
     CUE-01, CUE-02, CUE-03: Optional pre/post cue playback.
     """
     if not path:
+        return
+    if platform.system() != "Windows":
+        logging.debug("Audio cue skipped on non-Windows platform: %s", path)
         return
     try:
         winsound.PlaySound(path, winsound.SND_FILENAME)
