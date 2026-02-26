@@ -16,6 +16,11 @@ Phase 4 additions (Plan 04-02):
   - Icon image swapping: speaking/idle indicator via tray icon (TRAY-03)
   - start_tts_worker(kokoro_engine, icon=None): icon reference for image swap
 
+Phase 5 additions (Plan 05-01):
+  - STATE["model"]: TTS engine selector — "kokoro" (default) or "piper" (TTS-04)
+  - STATE["piper_model_path"]: absolute path to Piper ONNX model file (TTS-04)
+  - Plan 05-02 adds _get_active_engine() dispatcher for runtime engine switching
+
 CRITICAL: threading.Queue is used intentionally — NOT asyncio.Queue.
 asyncio.Queue is not thread-safe and must not be used as the bridge
 between FastAPI's async handlers and this blocking threading.Thread worker.
@@ -49,13 +54,15 @@ TTS_QUEUE: queue.Queue = queue.Queue(maxsize=3)
 # Runtime state dict — read at synthesis time so changes take effect
 # on the NEXT sentence without service restart (AUDIO-06, TTS-05).
 STATE: dict = {
-    "volume": 1.0,         # 0.0–2.0; >1.0 clips via np.clip to protect speakers
-    "speed": 1.0,          # 0.5–2.0; passed to kokoro.create(speed=...)
-    "voice": "af_heart",   # Kokoro voice identifier
-    "muted": False,        # Skip synthesis entirely when True
-    "speaking": False,     # True while TTS is synthesizing/playing (TRAY-03)
-    "pre_cue_path": None,  # Path to WAV file played before each utterance (CUE-01, CUE-03)
-    "post_cue_path": None, # Path to WAV file played after each utterance (CUE-02, CUE-03)
+    "volume": 1.0,              # 0.0–2.0; >1.0 clips via np.clip to protect speakers
+    "speed": 1.0,               # 0.5–2.0; passed to kokoro.create(speed=...)
+    "voice": "af_heart",        # Kokoro voice identifier
+    "muted": False,             # Skip synthesis entirely when True
+    "speaking": False,          # True while TTS is synthesizing/playing (TRAY-03)
+    "pre_cue_path": None,       # Path to WAV file played before each utterance (CUE-01, CUE-03)
+    "post_cue_path": None,      # Path to WAV file played after each utterance (CUE-02, CUE-03)
+    "model": "kokoro",          # TTS engine: "kokoro" or "piper" (TTS-04)
+    "piper_model_path": None,   # Absolute path to Piper ONNX model file (TTS-04)
 }
 
 # Module-level AudioDucker instance — shared between worker and atexit handler.

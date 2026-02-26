@@ -20,13 +20,14 @@ import sounddevice as sd
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from typing import Optional
 from pydantic import BaseModel
 
 import pystray
 
 from agenttalk.tts_worker import TTS_QUEUE, STATE, start_tts_worker, _ducker  # noqa: F401
 from agenttalk.tray import build_tray_icon
-from agenttalk.config_loader import load_config
+from agenttalk.config_loader import load_config, save_config
 
 # ---------------------------------------------------------------------------
 # APPDATA paths
@@ -210,6 +211,18 @@ class SpeakRequest(BaseModel):
     text: str
 
 
+class ConfigRequest(BaseModel):
+    """Request body for POST /config — all fields optional (partial update)."""
+
+    voice: Optional[str] = None
+    speed: Optional[float] = None
+    volume: Optional[float] = None
+    model: Optional[str] = None       # "kokoro" or "piper"
+    muted: Optional[bool] = None
+    pre_cue_path: Optional[str] = None
+    post_cue_path: Optional[str] = None
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     """FastAPI lifespan: load Kokoro before accepting requests; set is_ready after warmup."""
@@ -301,6 +314,47 @@ async def speak(req: SpeakRequest):
         )
 
 
+@app.post("/config", status_code=200)
+async def update_config(req: ConfigRequest):
+    """
+    Update one or more runtime settings. Changes take effect immediately (CFG-03).
+    Persists all settings to config.json after each update (CFG-01, CFG-02).
+
+    Returns:
+        200 + {"status": "ok", "updated": [...]}  — keys updated in STATE and saved to disk
+        200 + {"status": "ok", "updated": []}     — empty body (no-op)
+    """
+    updates = req.model_dump(exclude_none=True)
+    for key, value in updates.items():
+        if key in STATE:
+            STATE[key] = value
+            logging.info("Config updated: %s = %s", key, value)
+    save_config(STATE)
+    return JSONResponse({"status": "ok", "updated": list(updates.keys())})
+
+
+@app.post("/stop", status_code=200)
+async def stop_service():
+    """
+    Silence current TTS and terminate the service process.
+
+    Calls sd.stop() immediately, then schedules os._exit(0) in a daemon thread
+    with a 0.1s delay so the HTTP response is returned before the process exits.
+    (os._exit(0) terminates without waiting for threads — same as _on_quit().)
+
+    CMD-02: /agenttalk:stop slash command calls this endpoint.
+    """
+    sd.stop()  # Interrupt any currently playing audio immediately
+
+    def _exit():
+        import time
+        time.sleep(0.1)
+        os._exit(0)
+
+    threading.Thread(target=_exit, daemon=True).start()
+    return JSONResponse({"status": "stopped"})
+
+
 # ---------------------------------------------------------------------------
 # Uvicorn daemon thread — Windows-safe (no signal handler)
 # ---------------------------------------------------------------------------
@@ -335,15 +389,13 @@ def main() -> None:
     try:
         acquire_pid_lock()
 
-        # CUE-04: Load persisted config and seed cue paths into STATE before the tray starts.
-        # Phase 5 will add write support; Phase 4 reads only.
+        # CFG-01, CFG-02, CFG-03: Restore all persisted settings from config.json at startup.
+        # This ensures voice, model, speed, volume, mute, and cue paths survive restarts.
         _cfg = load_config()
-        if _cfg.get("pre_cue_path"):
-            STATE["pre_cue_path"] = _cfg["pre_cue_path"]
-            logging.info("Config: pre_cue_path = %s", STATE["pre_cue_path"])
-        if _cfg.get("post_cue_path"):
-            STATE["post_cue_path"] = _cfg["post_cue_path"]
-            logging.info("Config: post_cue_path = %s", STATE["post_cue_path"])
+        for _key in ("voice", "speed", "volume", "model", "muted", "pre_cue_path", "post_cue_path"):
+            if _key in _cfg and _cfg[_key] is not None:
+                STATE[_key] = _cfg[_key]
+                logging.info("Config restored: %s = %s", _key, STATE[_key])
 
         # Register atexit: unduck any ducked sessions on abnormal exit.
         # This covers crashes and SIGTERM — prevents Spotify/browser stuck at 50%.
