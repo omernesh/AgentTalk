@@ -224,7 +224,7 @@ class ConfigRequest(BaseModel):
 
     voice: str | None = Field(
         None,
-        description="Kokoro voice ID. See GET /voices for the full list.",
+        description="Kokoro voice ID (only used when model='kokoro'). See GET /voices for the full list.",
         examples=["af_heart"],
     )
     speed: float | None = Field(
@@ -241,8 +241,8 @@ class ConfigRequest(BaseModel):
     )
     model: str | None = Field(
         None,
-        description="TTS engine to use.",
-        examples=["kokoro"],
+        description="TTS engine to use. 'kokoro' (default, high quality) or 'piper' (alternative, requires piper_model_path).",
+        examples=["kokoro", "piper"],
     )
     muted: bool | None = Field(
         None,
@@ -307,7 +307,11 @@ async def _lifespan(app: FastAPI):
 
 
 _DESCRIPTION = """
-AgentTalk is a local Windows text-to-speech service powered by the [Kokoro ONNX](https://github.com/thewh1teagle/kokoro-onnx) model.
+AgentTalk is a local Windows text-to-speech service supporting two offline TTS engines:
+
+- **Kokoro ONNX** ([kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx)) — default engine, high quality, 11 voices
+- **Piper TTS** ([piper-tts](https://github.com/OHF-voice/piper1-gpl)) — alternative engine, switchable at runtime, multiple downloadable voice models
+
 It accepts plain text or Markdown, preprocesses it into speakable sentences, and plays audio through your default output device.
 
 ## Integration
@@ -325,7 +329,23 @@ curl -X POST http://localhost:5050/speak \\
 - Text is **preprocessed**: Markdown stripped, code blocks removed, URLs removed, whitespace normalised.
 - Audio is **queued** — multiple calls stack up and play in order (FIFO, max 10 items).
 - If the queue is full the request is dropped with **429**; the caller may retry.
-- While the Kokoro model is loading all endpoints return **503**.
+- While the TTS engine is loading all endpoints return **503**.
+
+## Engine switching
+
+Switch between Kokoro and Piper at runtime via `POST /config`:
+
+```bash
+# Switch to Piper
+curl -X POST http://localhost:5050/config \\
+     -H "Content-Type: application/json" \\
+     -d '{"model": "piper", "piper_model_path": "C:/path/to/en_US-lessac-medium.onnx"}'
+
+# Switch back to Kokoro
+curl -X POST http://localhost:5050/config \\
+     -H "Content-Type: application/json" \\
+     -d '{"model": "kokoro"}'
+```
 """
 
 app = FastAPI(
@@ -354,7 +374,7 @@ app = FastAPI(
     },
 )
 def health():
-    """Returns `{"status": "ok"}` once the Kokoro model has loaded and the TTS worker is running.
+    """Returns `{"status": "ok"}` once the TTS engine has loaded and the worker is running.
     Returns `{"status": "initializing"}` with HTTP 503 while the model is loading (~5–15 s on first launch)."""
     if not is_ready:
         return JSONResponse({"status": "initializing"}, status_code=503)
@@ -364,13 +384,14 @@ def health():
 @app.get(
     "/voices",
     tags=["Status"],
-    summary="List available voices",
+    summary="List available Kokoro voices",
     responses={
-        200: {"description": "List of available Kokoro voice IDs."},
+        200: {"description": "List of Kokoro voice IDs (only applicable when model='kokoro')."},
     },
 )
 def list_voices():
-    """Returns all Kokoro voice IDs that can be passed to `POST /config`."""
+    """Returns all Kokoro voice IDs that can be passed to `POST /config` as `voice`.
+    These are only used when `model` is `kokoro`. For Piper voice models see `GET /piper-voices`."""
     from agenttalk.tray import KOKORO_VOICES
     return JSONResponse({"voices": KOKORO_VOICES})
 
@@ -384,7 +405,15 @@ def list_voices():
     },
 )
 def get_config():
-    """Returns the current runtime state (voice, model, speed, volume, muted, cue paths, piper_model_path)."""
+    """Returns the full current runtime state:
+    - `voice`: active Kokoro voice ID (used when `model` is `kokoro`)
+    - `model`: active TTS engine — `"kokoro"` or `"piper"`
+    - `speed`: speech speed multiplier (0.5–2.0)
+    - `volume`: playback volume (0.0–1.0)
+    - `muted`: when true, synthesis is skipped entirely
+    - `pre_cue_path` / `post_cue_path`: optional WAV paths played before/after each utterance
+    - `piper_model_path`: absolute path to the active Piper ONNX model (used when `model` is `piper`)
+    """
     return JSONResponse({
         "voice":            STATE.get("voice"),
         "model":            STATE.get("model"),
@@ -406,8 +435,15 @@ def get_config():
     },
 )
 def list_piper_voices():
-    """Returns the stems of .onnx files in %APPDATA%/AgentTalk/models/piper/ (e.g. 'en_US-lessac-medium').
-    Each stem can be passed as the voice name to POST /config as piper_model_path."""
+    """Returns the stems of downloaded `.onnx` model files in `%APPDATA%/AgentTalk/models/piper/`
+    (e.g. `en_US-lessac-medium`). To switch to a listed voice, POST the full path to `/config`:
+
+    ```json
+    {"piper_model_path": "<dir>/en_US-lessac-medium.onnx"}
+    ```
+
+    The `dir` field in the response contains the full directory path for convenience.
+    Only applicable when `model` is `piper`."""
     piper_dir = MODELS_DIR / "piper"
     if not piper_dir.exists():
         return JSONResponse({"voices": [], "dir": str(piper_dir)})
@@ -483,6 +519,12 @@ async def update_config(req: ConfigRequest):
     Applies a partial runtime configuration update. All fields are optional — only
     the provided fields are changed. Settings take effect immediately and are persisted
     to `%APPDATA%\\AgentTalk\\config.json` so they survive service restarts.
+
+    **Engine switching:** set `model` to `"piper"` and provide `piper_model_path` pointing to a
+    downloaded `.onnx` file. The Piper engine is lazy-loaded on the next `/speak` request and
+    reloaded automatically if `piper_model_path` changes. Switch back by setting `model` to `"kokoro"`.
+
+    See `GET /piper-voices` for downloaded Piper models and `GET /voices` for Kokoro voice IDs.
     """
     updates = req.model_dump(exclude_none=True)
     if not updates:
