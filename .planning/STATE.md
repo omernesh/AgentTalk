@@ -85,7 +85,7 @@ Recent decisions affecting current work:
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 1 | Semi-automatic speech mode with /speak command and /agenttalk:mode toggle | 2026-02-26 | c5e7adb | [1-semi-automatic-speech-mode-with-speak-co](.planning/quick/1-semi-automatic-speech-mode-with-speak-co/) |
-| 2 | Tray Model submenu (kokoro/piper) and context-aware Voice submenu per engine | 2026-02-26 | 0e7ab0f | [2-tray-icon-model-selection-and-per-model-](.planning/quick/2-tray-icon-model-selection-and-per-model-/) |
+| 2 | Tray Model submenu (kokoro/piper) and context-aware Voice submenu per engine | 2026-02-26 | 691966d | [2-tray-icon-model-selection-and-per-model-](.planning/quick/2-tray-icon-model-selection-and-per-model-/) |
 
 ## Session Continuity
 
