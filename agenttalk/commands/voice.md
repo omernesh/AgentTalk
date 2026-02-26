@@ -7,7 +7,20 @@ allowed-tools: Bash
 
 Switch the AgentTalk TTS voice to $ARGUMENTS.
 
-**If $ARGUMENTS is empty or blank**, display this numbered pick list to the user and ask them to type a number to select:
+First check the active engine and available voices:
+
+```bash
+curl -s http://localhost:5050/config --max-time 5
+curl -s http://localhost:5050/piper-voices --max-time 5
+```
+
+If the connection is refused, say "AgentTalk service is not running. Start it with /agenttalk:start." and stop.
+
+---
+
+**If `model` is `kokoro`:**
+
+**If $ARGUMENTS is empty or blank**, show this numbered list and ask the user to pick:
 
 ```
 1.  af_heart    — American Female (warm, default)
@@ -23,9 +36,7 @@ Switch the AgentTalk TTS voice to $ARGUMENTS.
 11. bm_lewis    — British Male
 ```
 
-Wait for the user to type a number or voice name, resolve it to the voice ID, then run the curl below.
-
-**If $ARGUMENTS is a voice name or number**, resolve it to the correct voice ID and run:
+Wait for user to pick, resolve to voice ID, then:
 
 ```bash
 curl -s -X POST http://localhost:5050/config \
@@ -34,5 +45,26 @@ curl -s -X POST http://localhost:5050/config \
   --max-time 5
 ```
 
-If the response contains `"status": "ok"`, confirm: "Voice switched to [voice-id]."
-If the connection is refused, say "AgentTalk service is not running. Start it with /agenttalk:start."
+---
+
+**If `model` is `piper`:**
+
+The `/piper-voices` response contains a `voices` array of model stems (e.g. `en_US-lessac-medium`) and a `dir` path.
+
+**If $ARGUMENTS is empty or blank**, show the voices as a numbered list and ask the user to pick.
+
+Wait for user to pick, build the full path as `dir + "/" + stem + ".onnx"`, then:
+
+```bash
+curl -s -X POST http://localhost:5050/config \
+  -H "Content-Type: application/json" \
+  -d "{\"piper_model_path\": \"FULL_PATH\"}" \
+  --max-time 5
+```
+
+Note: switching Piper voice triggers an engine reload on the next spoken sentence (takes ~2 s).
+
+---
+
+If `"status": "ok"` in the response, confirm: "Voice switched to [name]."
+If connection refused: "AgentTalk service is not running. Start it with /agenttalk:start."

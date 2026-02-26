@@ -74,8 +74,9 @@ _ducker: AudioDucker = AudioDucker()
 _icon_ref = None
 
 # Lazy-loaded Piper engine instance — None until STATE['model'] first switches to 'piper'.
-# _get_active_engine() creates it on demand. Once loaded, reused for all subsequent Piper synthesis.
+# _get_active_engine() creates it on demand and reloads it when piper_model_path changes.
 _piper_engine = None
+_piper_loaded_path: str | None = None  # tracks which .onnx is currently loaded
 
 
 # ---------------------------------------------------------------------------
@@ -103,20 +104,21 @@ def _get_active_engine(kokoro):
     TTS-04: Piper TTS switchable at runtime via /agenttalk:model without service restart.
     CFG-03: STATE['model'] is updated by POST /config; next synthesis call uses new engine.
     """
-    global _piper_engine
+    global _piper_engine, _piper_loaded_path
     model = STATE.get("model", "kokoro")
     if model == "piper":
-        if _piper_engine is None:
-            piper_path = STATE.get("piper_model_path")
-            if not piper_path:
-                raise RuntimeError(
-                    "Piper model path not configured. "
-                    "Run 'agenttalk setup --piper' to download a model, "
-                    "or set piper_model_path in config.json."
-                )
+        piper_path = STATE.get("piper_model_path")
+        if not piper_path:
+            raise RuntimeError(
+                "Piper model path not configured. "
+                "Run 'agenttalk setup --piper' to download a model, "
+                "or set piper_model_path in config.json."
+            )
+        if _piper_engine is None or _piper_loaded_path != piper_path:
             from agenttalk.piper_engine import PiperEngine  # deferred — lazy load
             logging.info("Initialising Piper engine from %s", piper_path)
             _piper_engine = PiperEngine(piper_path)
+            _piper_loaded_path = piper_path
         return _piper_engine
     # Default: Kokoro
     return kokoro

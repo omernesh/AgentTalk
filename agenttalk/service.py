@@ -375,6 +375,46 @@ def list_voices():
     return JSONResponse({"voices": KOKORO_VOICES})
 
 
+@app.get(
+    "/config",
+    tags=["Configuration"],
+    summary="Get current runtime settings",
+    responses={
+        200: {"description": "Current runtime configuration."},
+    },
+)
+def get_config():
+    """Returns the current runtime state (voice, model, speed, volume, muted, cue paths, piper_model_path)."""
+    return JSONResponse({
+        "voice":            STATE.get("voice"),
+        "model":            STATE.get("model"),
+        "speed":            STATE.get("speed"),
+        "volume":           STATE.get("volume"),
+        "muted":            STATE.get("muted"),
+        "pre_cue_path":     STATE.get("pre_cue_path"),
+        "post_cue_path":    STATE.get("post_cue_path"),
+        "piper_model_path": STATE.get("piper_model_path"),
+    })
+
+
+@app.get(
+    "/piper-voices",
+    tags=["Status"],
+    summary="List downloaded Piper voice models",
+    responses={
+        200: {"description": "List of available Piper ONNX model stems in the models/piper directory."},
+    },
+)
+def list_piper_voices():
+    """Returns the stems of .onnx files in %APPDATA%/AgentTalk/models/piper/ (e.g. 'en_US-lessac-medium').
+    Each stem can be passed as the voice name to POST /config as piper_model_path."""
+    piper_dir = MODELS_DIR / "piper"
+    if not piper_dir.exists():
+        return JSONResponse({"voices": [], "dir": str(piper_dir)})
+    voices = sorted(p.stem for p in piper_dir.glob("*.onnx"))
+    return JSONResponse({"voices": voices, "dir": str(piper_dir)})
+
+
 @app.post(
     "/speak",
     tags=["TTS"],

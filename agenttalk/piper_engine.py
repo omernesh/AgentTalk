@@ -50,11 +50,11 @@ class PiperEngine:
 
     Raises:
         FileNotFoundError: If model_path does not exist.
-        ImportError: If piper-tts package is not installed (pip install piper-tts).
+        ImportError: If piper-tts package is not installed (pip install piper-tts installs as 'piper' module).
     """
 
     def __init__(self, model_path: str):
-        from piper_tts import PiperVoice  # deferred import — lazy load
+        from piper import PiperVoice  # deferred import — lazy load
         logging.info("Loading Piper model from %s ...", model_path)
         self._voice = PiperVoice.load(model_path)
         self._sample_rate = 22050  # Piper default; updated from actual WAV framerate after first synthesis
@@ -81,7 +81,7 @@ class PiperEngine:
                 samples: np.ndarray[float32] in range [-1.0, 1.0]
                 sample_rate: int (typically 22050 Hz for Piper)
         """
-        from piper_tts import SynthesisConfig  # deferred import
+        from piper import SynthesisConfig  # deferred import
 
         # Clamp speed to avoid division-by-zero
         safe_speed = max(float(speed), 0.1)
