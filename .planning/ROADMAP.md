@@ -43,7 +43,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. A sentence consisting of fewer than 40% alphabetic characters (e.g., pure JSON) is silently skipped and no audio plays for it
   4. Sending 10 rapid POST requests causes at most 3 to queue; the rest are dropped without crashing the service
   5. Audio plays without sample rate errors on a standard Windows 11 audio device
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — TDD: text preprocessing module (strip_markdown, is_speakable, preprocess)
+- [ ] 02-02-PLAN.md — TTS queue + /speak endpoint + WASAPI detection wired into service
 
 ### Phase 3: Claude Code Hook Integration
 **Goal**: Typing a message in Claude Code and receiving an assistant response causes the response text to be spoken aloud automatically, and opening a new Claude Code session auto-launches the service if it is not running
