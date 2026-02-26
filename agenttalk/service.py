@@ -25,7 +25,7 @@ from pydantic import BaseModel
 import pystray
 
 from agenttalk.tts_worker import TTS_QUEUE, STATE, start_tts_worker, _ducker  # noqa: F401
-from agenttalk.tray import build_tray_icon, create_image_idle, create_image_speaking  # noqa: F401
+from agenttalk.tray import build_tray_icon
 from agenttalk.config_loader import load_config
 
 # ---------------------------------------------------------------------------
