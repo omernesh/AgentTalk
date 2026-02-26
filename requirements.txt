@@ -6,3 +6,7 @@ psutil>=5.9
 pysbd==0.3.4
 pystray>=0.19.5
 pycaw>=20251023
+requests>=2.31
+tqdm>=4.66
+pywin32>=306
+winshell>=0.6
