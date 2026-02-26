@@ -14,20 +14,21 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import queue
+import time
 
 import psutil
 import sounddevice as sd
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from typing import Optional
 from pydantic import BaseModel
 
 import pystray
 
-from agenttalk.tts_worker import TTS_QUEUE, STATE, start_tts_worker, _ducker  # noqa: F401
+from agenttalk.tts_worker import TTS_QUEUE, STATE, start_tts_worker, _ducker
 from agenttalk.tray import build_tray_icon
 from agenttalk.config_loader import load_config, save_config
+from agenttalk.preprocessor import preprocess
 
 # ---------------------------------------------------------------------------
 # APPDATA paths
@@ -63,6 +64,12 @@ def setup_logging() -> None:
         logging.critical("Uncaught exception", exc_info=(exc_type, exc_value, exc_tb))
 
     sys.excepthook = _log_uncaught
+
+    def _thread_excepthook(args):
+        if args.exc_type is SystemExit:
+            return
+        logging.critical("Unhandled exception in thread '%s'", args.thread.name if args.thread else "unknown", exc_info=(args.exc_type, args.exc_value, args.exc_tb))
+    threading.excepthook = _thread_excepthook
 
 
 # ---------------------------------------------------------------------------
@@ -118,16 +125,9 @@ def _load_and_warmup_kokoro():
     Returns the loaded Kokoro instance.
     Raises FileNotFoundError if model files are missing.
     """
-    if not MODEL_PATH.exists():
-        raise FileNotFoundError(
-            f"Kokoro model not found: {MODEL_PATH}\n"
-            "Run `agenttalk setup` to download model files."
-        )
-    if not VOICES_PATH.exists():
-        raise FileNotFoundError(
-            f"Kokoro voices not found: {VOICES_PATH}\n"
-            "Run `agenttalk setup` to download model files."
-        )
+    for p in (MODEL_PATH, VOICES_PATH):
+        if not p.exists():
+            raise FileNotFoundError(f"Model file missing: {p}\nRun 'agenttalk setup' to download.")
 
     from kokoro_onnx import Kokoro  # deferred import — logging is already active
 
@@ -174,8 +174,12 @@ def _configure_audio() -> None:
                 "Non-WASAPI device (%s) — using PortAudio default resampling.",
                 hostapi_name,
             )
-    except Exception:
+    except sd.PortAudioError:
         logging.warning(
+            "Could not detect host API; using PortAudio defaults.", exc_info=True
+        )
+    except (AttributeError, TypeError):
+        logging.error(
             "Could not detect host API; using PortAudio defaults.", exc_info=True
         )
 
@@ -214,13 +218,13 @@ class SpeakRequest(BaseModel):
 class ConfigRequest(BaseModel):
     """Request body for POST /config — all fields optional (partial update)."""
 
-    voice: Optional[str] = None
-    speed: Optional[float] = None
-    volume: Optional[float] = None
-    model: Optional[str] = None       # "kokoro" or "piper"
-    muted: Optional[bool] = None
-    pre_cue_path: Optional[str] = None
-    post_cue_path: Optional[str] = None
+    voice: str | None = None
+    speed: float | None = None
+    volume: float | None = None
+    model: str | None = None       # "kokoro" or "piper"
+    muted: bool | None = None
+    pre_cue_path: str | None = None
+    post_cue_path: str | None = None
 
 
 @asynccontextmanager
@@ -239,7 +243,7 @@ async def _lifespan(app: FastAPI):
         start_tts_worker(_kokoro_engine, icon=_tray_icon)
         logging.info("TTS worker started with icon reference.")
 
-        # Phase 1 proof: synthesize and play hardcoded audio to confirm full pipeline
+        # Startup audio: confirms full pipeline is working.
         logging.info("Running startup audio proof: synthesizing 'AgentTalk is running.'")
         samples, rate = _kokoro_engine.create(
             "AgentTalk is running.",
@@ -288,9 +292,11 @@ async def speak(req: SpeakRequest):
     if not is_ready:
         return JSONResponse({"status": "not_ready"}, status_code=503)
 
-    from agenttalk.preprocessor import preprocess
-
-    sentences = preprocess(req.text)
+    try:
+        sentences = preprocess(req.text)
+    except Exception:
+        logging.exception("preprocess() failed for /speak request.")
+        return JSONResponse({"status": "error", "reason": "preprocessing failed"}, status_code=500)
 
     if not sentences:
         return JSONResponse(
@@ -325,11 +331,17 @@ async def update_config(req: ConfigRequest):
         200 + {"status": "ok", "updated": []}     — empty body (no-op)
     """
     updates = req.model_dump(exclude_none=True)
+    if not updates:
+        return JSONResponse({"status": "ok", "updated": []})
     for key, value in updates.items():
         if key in STATE:
             STATE[key] = value
             logging.info("Config updated: %s = %s", key, value)
-    save_config(STATE)
+    try:
+        save_config(STATE)
+    except OSError:
+        logging.exception("save_config() failed — config not persisted.")
+        return JSONResponse({"status": "error", "reason": "config save failed"}, status_code=500)
     return JSONResponse({"status": "ok", "updated": list(updates.keys())})
 
 
@@ -347,7 +359,6 @@ async def stop_service():
     sd.stop()  # Interrupt any currently playing audio immediately
 
     def _exit():
-        import time
         time.sleep(0.1)
         os._exit(0)
 
@@ -373,7 +384,15 @@ def _start_http_server() -> threading.Thread:
         log_level="warning",
     )
     server = _BackgroundServer(config)
-    thread = threading.Thread(target=server.run, daemon=True, name="uvicorn")
+    def _run_server():
+        try:
+            server.run()
+        except OSError:
+            logging.critical("HTTP server failed to start (OSError — port in use?).", exc_info=True)
+        except Exception:
+            logging.critical("HTTP server crashed unexpectedly.", exc_info=True)
+
+    thread = threading.Thread(target=_run_server, daemon=True, name="uvicorn")
     thread.start()
     logging.info("HTTP server thread started (localhost:5050).")
     return thread

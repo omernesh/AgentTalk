@@ -139,8 +139,10 @@ def play_cue(path: str | None) -> None:
         return
     try:
         winsound.PlaySound(path, winsound.SND_FILENAME)
+    except FileNotFoundError:
+        logging.error("Audio cue file not found: %s — check pre_cue_path/post_cue_path config", path)
     except Exception:
-        logging.warning("Audio cue failed to play: %s", path, exc_info=True)
+        logging.warning("Audio cue failed: %s", path, exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -178,6 +180,16 @@ def start_tts_worker(kokoro_engine, icon=None) -> threading.Thread:
     return t
 
 
+def _swap_icon(image_fn, label: str) -> None:
+    """Swap the tray icon image. No-op if no icon reference is set."""
+    if _icon_ref is None:
+        return
+    try:
+        _icon_ref.icon = image_fn()
+    except Exception:
+        logging.warning("Icon swap to %s failed (non-fatal).", label, exc_info=True)
+
+
 def _tts_worker(kokoro_engine) -> None:
     """
     Blocking TTS synthesis loop — runs in daemon thread.
@@ -210,13 +222,7 @@ def _tts_worker(kokoro_engine) -> None:
 
             # TRAY-03: Notify tray icon that TTS is speaking
             STATE["speaking"] = True
-            if _icon_ref is not None:
-                try:
-                    _icon_ref.icon = create_image_speaking()
-                except Exception:
-                    logging.debug(
-                        "Icon swap to speaking failed (non-fatal).", exc_info=True
-                    )
+            _swap_icon(create_image_speaking, "speaking")
 
             # CUE-01: Play pre-speech cue (synchronous — must finish before synthesis)
             play_cue(STATE.get("pre_cue_path"))
@@ -224,12 +230,12 @@ def _tts_worker(kokoro_engine) -> None:
             # AUDIO-07: Duck other audio sessions
             _ducker.duck()
 
+            engine = _get_active_engine(kokoro_engine)
             for sentence in sentences:
                 if not sentence.strip():
                     continue
 
                 logging.debug("TTS: synthesizing %r", sentence[:60])
-                engine = _get_active_engine(kokoro_engine)
                 samples, rate = engine.create(
                     sentence,
                     voice=STATE["voice"],
@@ -265,11 +271,5 @@ def _tts_worker(kokoro_engine) -> None:
         finally:
             # TRAY-03: Always restore idle icon and clear speaking flag
             STATE["speaking"] = False
-            if _icon_ref is not None:
-                try:
-                    _icon_ref.icon = create_image_idle()
-                except Exception:
-                    logging.debug(
-                        "Icon swap to idle failed (non-fatal).", exc_info=True
-                    )
+            _swap_icon(create_image_idle, "idle")
             TTS_QUEUE.task_done()
