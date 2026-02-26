@@ -73,6 +73,54 @@ _ducker: AudioDucker = AudioDucker()
 # If None, icon image swapping is skipped (safe for testing without tray).
 _icon_ref = None
 
+# Lazy-loaded Piper engine instance — None until STATE['model'] first switches to 'piper'.
+# _get_active_engine() creates it on demand. Once loaded, reused for all subsequent Piper synthesis.
+_piper_engine = None
+
+
+# ---------------------------------------------------------------------------
+# Engine dispatcher
+# ---------------------------------------------------------------------------
+
+def _get_active_engine(kokoro):
+    """
+    Return the active TTS engine based on STATE['model'].
+
+    When model == 'kokoro' (default): returns the Kokoro engine passed as argument.
+    When model == 'piper': lazy-loads PiperEngine on first call using STATE['piper_model_path'].
+
+    Args:
+        kokoro: The Kokoro engine instance (passed from _tts_worker via start_tts_worker).
+
+    Returns:
+        An engine with a create(text, voice, speed, lang) -> (samples, rate) interface.
+
+    Raises:
+        RuntimeError: If model == 'piper' and piper_model_path is not configured in STATE.
+        ImportError: If model == 'piper' and piper-tts package is not installed.
+        FileNotFoundError: If model == 'piper' and the model file does not exist.
+
+    TTS-04: Piper TTS switchable at runtime via /agenttalk:model without service restart.
+    CFG-03: STATE['model'] is updated by POST /config; next synthesis call uses new engine.
+    """
+    global _piper_engine
+    model = STATE.get("model", "kokoro")
+    if model == "piper":
+        if _piper_engine is None:
+            piper_path = STATE.get("piper_model_path")
+            if not piper_path:
+                raise RuntimeError(
+                    "Piper model path not configured. "
+                    "Run 'agenttalk setup --piper' to download a model, "
+                    "or set piper_model_path in config.json."
+                )
+            from agenttalk.piper_engine import PiperEngine  # deferred — lazy load
+            logging.info("Initialising Piper engine from %s", piper_path)
+            _piper_engine = PiperEngine(piper_path)
+        return _piper_engine
+    # Default: Kokoro
+    return kokoro
+
 
 # ---------------------------------------------------------------------------
 # Audio cue helper
@@ -181,7 +229,8 @@ def _tts_worker(kokoro_engine) -> None:
                     continue
 
                 logging.debug("TTS: synthesizing %r", sentence[:60])
-                samples, rate = kokoro_engine.create(
+                engine = _get_active_engine(kokoro_engine)
+                samples, rate = engine.create(
                     sentence,
                     voice=STATE["voice"],
                     speed=STATE["speed"],
