@@ -136,9 +136,8 @@ def _load_and_warmup_kokoro():
 
 
 # ---------------------------------------------------------------------------
-# Audio playback — sounddevice + WASAPI
+# Audio playback — sounddevice (PortAudio/MME handles sample rate conversion)
 # ---------------------------------------------------------------------------
-
 
 def _configure_audio() -> None:
     """
