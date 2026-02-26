@@ -11,23 +11,23 @@
 - [x] **TTS-02**: Service performs eager model load + warmup synthesis call before accepting requests (avoids 3-8s first-request latency)
 - [x] **TTS-03**: Service exposes `/health` endpoint returning 503 until model is warm and ready
 - [ ] **TTS-04**: Piper TTS is available as an alternate engine, switchable at runtime via `/agenttalk:model`
-- [ ] **TTS-05**: User can adjust TTS speech speed (rate) via configuration and slash command
+- [x] **TTS-05**: User can adjust TTS speech speed (rate) via configuration and slash command
 
 ### Audio Pipeline
 
-- [ ] **AUDIO-01**: Text is sentence-chunked before synthesis — first sentence begins playing while remaining sentences synthesize
+- [x] **AUDIO-01**: Text is sentence-chunked before synthesis — first sentence begins playing while remaining sentences synthesize
 - [x] **AUDIO-02**: Text preprocessing pipeline strips fenced code blocks, inline code, URLs, file paths, and markdown markers before TTS
 - [x] **AUDIO-03**: Sentences with fewer than 40% alphabetic characters are silently skipped (avoids reading symbols, JSON, etc.)
-- [ ] **AUDIO-04**: Incoming TTS requests are queued (bounded, max 3 pending); overflow is dropped to prevent runaway audio
-- [ ] **AUDIO-05**: WASAPI `auto_convert=True` is set to handle sample rate mismatches on Windows audio devices
-- [ ] **AUDIO-06**: User can adjust TTS output volume via configuration and slash command
+- [x] **AUDIO-04**: Incoming TTS requests are queued (bounded, max 3 pending); overflow is dropped to prevent runaway audio
+- [x] **AUDIO-05**: WASAPI `auto_convert=True` is set to handle sample rate mismatches on Windows audio devices
+- [x] **AUDIO-06**: User can adjust TTS output volume via configuration and slash command
 - [ ] **AUDIO-07**: When TTS begins speaking, other audio streams (e.g., Spotify, browser) are ducked to 50% of their current level via Windows Core Audio Session API; streams are restored to original level when TTS finishes
 
 ### Service Architecture
 
 - [x] **SVC-01**: Service runs as a Windows background process with no console window (pythonw.exe + DETACHED_PROCESS)
-- [ ] **SVC-02**: FastAPI HTTP server runs on localhost:5050 in a daemon thread (uvicorn)
-- [ ] **SVC-03**: TTS worker runs in a separate daemon thread consuming from the audio queue
+- [x] **SVC-02**: FastAPI HTTP server runs on localhost:5050 in a daemon thread (uvicorn)
+- [x] **SVC-03**: TTS worker runs in a separate daemon thread consuming from the audio queue
 - [ ] **SVC-04**: pystray tray icon runs on the main thread (Win32 message loop requirement)
 - [x] **SVC-05**: PID lock file at `%APPDATA%\AgentTalk\service.pid` prevents duplicate instances and enables clean process management
 - [x] **SVC-06**: All service logs written to `%APPDATA%\AgentTalk\agenttalk.log` (pythonw.exe suppresses stdout; file logging is mandatory)
@@ -129,15 +129,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SVC-05 | Phase 1 | Complete |
 | SVC-06 | Phase 1 | Complete |
 | SVC-07 | Phase 1 | Complete |
-| SVC-02 | Phase 2 | Pending |
-| SVC-03 | Phase 2 | Pending |
-| AUDIO-01 | Phase 2 | Pending |
+| SVC-02 | Phase 2 | Complete |
+| SVC-03 | Phase 2 | Complete |
+| AUDIO-01 | Phase 2 | Complete |
 | AUDIO-02 | Phase 2 | Complete |
 | AUDIO-03 | Phase 2 | Complete |
-| AUDIO-04 | Phase 2 | Pending |
-| AUDIO-05 | Phase 2 | Pending |
-| AUDIO-06 | Phase 2 | Pending |
-| TTS-05 | Phase 2 | Pending |
+| AUDIO-04 | Phase 2 | Complete |
+| AUDIO-05 | Phase 2 | Complete |
+| AUDIO-06 | Phase 2 | Complete |
+| TTS-05 | Phase 2 | Complete |
 | HOOK-01 | Phase 3 | Pending |
 | HOOK-02 | Phase 3 | Pending |
 | HOOK-03 | Phase 3 | Pending |

@@ -22,12 +22,12 @@ See: .planning/PROJECT.md (updated 2026-02-26)
 
 ## Current Position
 
-Phase: 2 of 6 (FastAPI HTTP Server and TTS Queue) — In Progress
-Plan: 1 of 2 complete (02-01 done, 02-02 pending)
-Status: Phase 2 executing — preprocessor complete, TTS worker + /speak endpoint next
-Last activity: 2026-02-26 — 02-01 complete: text preprocessing pipeline, 25 tests passing
+Phase: 2 of 6 (FastAPI HTTP Server and TTS Queue) — COMPLETE
+Plan: 2 of 2 complete
+Status: Phase 2 done — /speak endpoint live, TTS pipeline operational
+Last activity: 2026-02-26 — Phase 2 complete: all 9 requirements satisfied, POST /speak queues audio
 
-Progress: [███░░░░░░░] 25%
+Progress: [████░░░░░░] 33%
 
 ## Performance Metrics
 
@@ -41,7 +41,7 @@ Progress: [███░░░░░░░] 25%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | Phase 1 | 2/2 | 22 min | 11 min |
-| Phase 2 | 1/2 | 3 min | 3 min |
+| Phase 2 | 2/2 | 5 min | 2.5 min |
 
 **Recent Trend:**
 - Last 5 plans: 7 min, 15 min, 3 min
@@ -66,6 +66,8 @@ Recent decisions affecting current work:
 - [02-01]: Markdown link extraction must precede bare URL stripping — https?://\S+ consumes URL inside [text](url) breaking link regex
 - [02-01]: pysbd.Segmenter() instantiated per-call in segment_sentences() for thread safety under concurrent FastAPI requests
 - [02-01]: is_speakable 40% alpha threshold: short-key JSON like {"k":1} (14%) filtered; verbose-key JSON like {"key":"value"} (50%) passes — acceptable
+- [02-02]: threading.Queue (not asyncio.Queue) is the thread-safe bridge between async FastAPI handler and blocking TTS daemon thread
+- [02-02]: WasapiSettings applied conditionally — query host API, only WASAPI devices get auto_convert=True (MME devices get PaErrorCode -9984 if applied)
 
 ### Pending Todos
 
@@ -79,5 +81,5 @@ Recent decisions affecting current work:
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 02-01-PLAN.md — preprocessor.py + tests ready, proceeding to 02-02
+Stopped at: Phase 2 complete — /speak endpoint live, TTS queue + daemon thread operational
 Resume file: None
