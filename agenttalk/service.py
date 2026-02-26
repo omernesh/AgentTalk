@@ -21,7 +21,7 @@ import sounddevice as sd
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import pystray
 
@@ -212,19 +212,53 @@ _tray_icon = None
 class SpeakRequest(BaseModel):
     """Request body for POST /speak."""
 
-    text: str
+    text: str = Field(
+        ...,
+        description="Text to speak. Markdown is stripped automatically (bold, code blocks, URLs, etc.).",
+        examples=["Hello, world! AgentTalk will speak this aloud."],
+    )
 
 
 class ConfigRequest(BaseModel):
-    """Request body for POST /config — all fields optional (partial update)."""
+    """Runtime configuration — all fields optional (partial update)."""
 
-    voice: str | None = None
-    speed: float | None = None
-    volume: float | None = None
-    model: str | None = None       # "kokoro" or "piper"
-    muted: bool | None = None
-    pre_cue_path: str | None = None
-    post_cue_path: str | None = None
+    voice: str | None = Field(
+        None,
+        description="Kokoro voice ID. See GET /voices for the full list.",
+        examples=["af_heart"],
+    )
+    speed: float | None = Field(
+        None,
+        description="Speech speed multiplier.",
+        ge=0.5, le=2.0,
+        examples=[1.0],
+    )
+    volume: float | None = Field(
+        None,
+        description="Playback volume (0.0 = silent, 1.0 = full).",
+        ge=0.0, le=1.0,
+        examples=[1.0],
+    )
+    model: str | None = Field(
+        None,
+        description="TTS engine to use.",
+        examples=["kokoro"],
+    )
+    muted: bool | None = Field(
+        None,
+        description="When true, audio playback is suppressed without affecting the queue.",
+        examples=[False],
+    )
+    pre_cue_path: str | None = Field(
+        None,
+        description="Absolute path to a WAV/MP3 played before each TTS segment.",
+        examples=["C:/sounds/ding.wav"],
+    )
+    post_cue_path: str | None = Field(
+        None,
+        description="Absolute path to a WAV/MP3 played after each TTS segment.",
+        examples=["C:/sounds/done.wav"],
+    )
 
 
 @asynccontextmanager
@@ -267,27 +301,96 @@ async def _lifespan(app: FastAPI):
     logging.info("FastAPI shutdown complete.")
 
 
-app = FastAPI(lifespan=_lifespan)
+_DESCRIPTION = """
+AgentTalk is a local Windows text-to-speech service powered by the [Kokoro ONNX](https://github.com/thewh1teagle/kokoro-onnx) model.
+It accepts plain text or Markdown, preprocesses it into speakable sentences, and plays audio through your default output device.
+
+## Integration
+
+Any program can POST to `/speak` to queue text for playback:
+
+```bash
+curl -X POST http://localhost:5050/speak \\
+     -H "Content-Type: application/json" \\
+     -d '{"text": "Hello from your app!"}'
+```
+
+## Behaviour
+
+- Text is **preprocessed**: Markdown stripped, code blocks removed, URLs removed, whitespace normalised.
+- Audio is **queued** — multiple calls stack up and play in order (FIFO, max 10 items).
+- If the queue is full the request is dropped with **429**; the caller may retry.
+- While the Kokoro model is loading all endpoints return **503**.
+"""
+
+app = FastAPI(
+    title="AgentTalk",
+    description=_DESCRIPTION,
+    version="1.0.0",
+    contact={
+        "name": "AgentTalk on GitHub",
+        "url": "https://github.com/omernesh/AgentTalk",
+    },
+    license_info={
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT",
+    },
+    lifespan=_lifespan,
+)
 
 
-@app.get("/health")
+@app.get(
+    "/health",
+    tags=["Status"],
+    summary="Service health check",
+    responses={
+        200: {"description": "Service is ready and accepting requests."},
+        503: {"description": "Kokoro model is still loading — retry shortly."},
+    },
+)
 def health():
-    """Returns 503 while Kokoro is loading; 200 when ready."""
+    """Returns `{"status": "ok"}` once the Kokoro model has loaded and the TTS worker is running.
+    Returns `{"status": "initializing"}` with HTTP 503 while the model is loading (~5–15 s on first launch)."""
     if not is_ready:
         return JSONResponse({"status": "initializing"}, status_code=503)
     return JSONResponse({"status": "ok"}, status_code=200)
 
 
-@app.post("/speak", status_code=202)
+@app.get(
+    "/voices",
+    tags=["Status"],
+    summary="List available voices",
+    responses={
+        200: {"description": "List of available Kokoro voice IDs."},
+    },
+)
+def list_voices():
+    """Returns all Kokoro voice IDs that can be passed to `POST /config`."""
+    from agenttalk.tray import KOKORO_VOICES
+    return JSONResponse({"voices": KOKORO_VOICES})
+
+
+@app.post(
+    "/speak",
+    tags=["TTS"],
+    summary="Queue text for TTS playback",
+    status_code=202,
+    responses={
+        202: {"description": "Text accepted and queued for playback."},
+        200: {"description": "No speakable content after preprocessing (e.g. pure code, whitespace, or URLs only)."},
+        429: {"description": "TTS queue is full — request dropped. Retry after a moment."},
+        500: {"description": "Internal preprocessing error."},
+        503: {"description": "Service not yet initialised — model still loading."},
+    },
+)
 async def speak(req: SpeakRequest):
     """
-    Accept text, preprocess for TTS readiness, and queue for synthesis.
+    Accepts text (plain or Markdown), preprocesses it into speakable sentences,
+    and pushes them onto the TTS queue for ordered playback.
 
-    Returns:
-        202 + {"status": "queued", "sentences": N}  — text enqueued for playback
-        200 + {"status": "skipped", ...}             — no speakable content after preprocessing
-        429 + {"status": "dropped", ...}             — TTS queue full (backpressure)
-        503 + {"status": "not_ready"}                — service not yet initialized
+    Preprocessing strips: fenced code blocks, inline code, Markdown links, bare URLs,
+    headings, bold/italic, blockquotes, list markers, and excess whitespace.
+    Text is then split into sentences via `pysbd` before queuing.
     """
     if not is_ready:
         return JSONResponse({"status": "not_ready"}, status_code=503)
@@ -320,15 +423,21 @@ async def speak(req: SpeakRequest):
         )
 
 
-@app.post("/config", status_code=200)
+@app.post(
+    "/config",
+    tags=["Configuration"],
+    summary="Update runtime settings",
+    status_code=200,
+    responses={
+        200: {"description": "Settings updated and persisted to config.json."},
+        500: {"description": "Config file could not be saved (settings applied in-memory only)."},
+    },
+)
 async def update_config(req: ConfigRequest):
     """
-    Update one or more runtime settings. Changes take effect immediately (CFG-03).
-    Persists all settings to config.json after each update (CFG-01, CFG-02).
-
-    Returns:
-        200 + {"status": "ok", "updated": [...]}  — keys updated in STATE and saved to disk
-        200 + {"status": "ok", "updated": []}     — empty body (no-op)
+    Applies a partial runtime configuration update. All fields are optional — only
+    the provided fields are changed. Settings take effect immediately and are persisted
+    to `%APPDATA%\\AgentTalk\\config.json` so they survive service restarts.
     """
     updates = req.model_dump(exclude_none=True)
     if not updates:
@@ -345,16 +454,20 @@ async def update_config(req: ConfigRequest):
     return JSONResponse({"status": "ok", "updated": list(updates.keys())})
 
 
-@app.post("/stop", status_code=200)
+@app.post(
+    "/stop",
+    tags=["Control"],
+    summary="Stop audio and shut down the service",
+    status_code=200,
+    responses={
+        200: {"description": "Service is stopping. The process will exit within ~100 ms."},
+    },
+)
 async def stop_service():
     """
-    Silence current TTS and terminate the service process.
-
-    Calls sd.stop() immediately, then schedules os._exit(0) in a daemon thread
-    with a 0.1s delay so the HTTP response is returned before the process exits.
-    (os._exit(0) terminates without waiting for threads — same as _on_quit().)
-
-    CMD-02: /agenttalk:stop slash command calls this endpoint.
+    Immediately silences any currently playing audio, then terminates the service process.
+    The HTTP response is delivered before the process exits (~100 ms delay via daemon thread).
+    The system-tray icon disappears once the process exits.
     """
     sd.stop()  # Interrupt any currently playing audio immediately
 
