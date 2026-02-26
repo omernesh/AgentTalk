@@ -68,7 +68,7 @@ def setup_logging() -> None:
     def _thread_excepthook(args):
         if args.exc_type is SystemExit:
             return
-        logging.critical("Unhandled exception in thread '%s'", args.thread.name if args.thread else "unknown", exc_info=(args.exc_type, args.exc_value, args.exc_tb))
+        logging.critical("Unhandled exception in thread '%s'", args.thread.name if args.thread else "unknown", exc_info=(args.exc_type, args.exc_value, args.exc_traceback))
     threading.excepthook = _thread_excepthook
 
 
