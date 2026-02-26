@@ -27,13 +27,13 @@ import pystray
 
 from agenttalk.tts_worker import TTS_QUEUE, STATE, start_tts_worker, _ducker
 from agenttalk.tray import build_tray_icon
-from agenttalk.config_loader import load_config, save_config
+from agenttalk.config_loader import load_config, save_config, _config_dir
 from agenttalk.preprocessor import preprocess
 
 # ---------------------------------------------------------------------------
-# APPDATA paths
+# Platform-aware paths (cross-platform via _config_dir())
 # ---------------------------------------------------------------------------
-APPDATA_DIR = Path(os.environ["APPDATA"]) / "AgentTalk"
+APPDATA_DIR = _config_dir()
 LOG_FILE    = APPDATA_DIR / "agenttalk.log"
 PID_FILE    = APPDATA_DIR / "service.pid"
 MODELS_DIR  = APPDATA_DIR / "models"

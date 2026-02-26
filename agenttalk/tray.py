@@ -12,12 +12,13 @@ Both are done by service.py's _setup() callback (research pattern #1).
 Requirements: TRAY-01, TRAY-02, TRAY-03, TRAY-04, TRAY-05, TRAY-06
 """
 import logging
-import os
 from pathlib import Path
 from typing import Callable
 
 import pystray
 from PIL import Image, ImageDraw
+
+from agenttalk.config_loader import _config_dir
 
 
 # All Kokoro voice identifiers (TRAY-04 — Voice submenu)
@@ -83,9 +84,8 @@ def create_image_speaking(size: int = 64) -> Image.Image:
 
 
 def _piper_dir() -> Path:
-    """Return the Piper models directory path."""
-    appdata = os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))
-    return Path(appdata) / "AgentTalk" / "models" / "piper"
+    """Return the Piper models directory path (cross-platform via _config_dir())."""
+    return _config_dir() / "models" / "piper"
 
 
 def build_tray_icon(

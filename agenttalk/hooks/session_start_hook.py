@@ -9,15 +9,32 @@ Registered in ~/.claude/settings.json with async: true by agenttalk setup.
 import sys
 import json
 import os
+import platform
 import subprocess
 from pathlib import Path
 
-APPDATA = Path(os.environ.get('APPDATA', Path.home() / 'AppData' / 'Roaming'))
-PID_FILE = APPDATA / 'AgentTalk' / 'service.pid'
+# Import _config_dir for cross-platform config directory resolution.
+# This module is executed directly by Claude Code as a hook, so it must be
+# importable without the full agenttalk package installed in some edge cases.
+# Using try/except with a fallback ensures the hook still works correctly.
+try:
+    from agenttalk.config_loader import _config_dir
+    CONFIG_DIR = _config_dir()
+except Exception:
+    # Fallback: use platform-appropriate path without importing config_loader
+    _system = platform.system()
+    if _system == "Windows":
+        CONFIG_DIR = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "AgentTalk"
+    elif _system == "Darwin":
+        CONFIG_DIR = Path.home() / "Library" / "Application Support" / "AgentTalk"
+    else:
+        CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "AgentTalk"
+
+PID_FILE = CONFIG_DIR / "service.pid"
 # These two files are written by `agenttalk setup` (Plan 02).
 # They contain absolute paths so the hook works regardless of cwd.
-SERVICE_PATH_FILE = APPDATA / 'AgentTalk' / 'service_path.txt'
-PYTHONW_PATH_FILE = APPDATA / 'AgentTalk' / 'pythonw_path.txt'
+SERVICE_PATH_FILE = CONFIG_DIR / "service_path.txt"
+PYTHONW_PATH_FILE = CONFIG_DIR / "pythonw_path.txt"
 
 
 def _service_is_running() -> bool:
@@ -67,23 +84,34 @@ def main() -> None:
         sys.exit(0)
 
     # Launch service as a fully detached subprocess.
-    # DETACHED_PROCESS + CREATE_NEW_PROCESS_GROUP fully separates the child from
-    # the hook's process tree — essential so Claude Code doesn't own the service process.
+    # Windows: DETACHED_PROCESS + CREATE_NEW_PROCESS_GROUP fully separates the child.
+    # macOS/Linux: start_new_session=True creates a new session (equivalent detach).
     try:
         pythonw = Path(PYTHONW_PATH_FILE.read_text(encoding='utf-8').strip())
         service_py = Path(SERVICE_PATH_FILE.read_text(encoding='utf-8').strip())
 
-        subprocess.Popen(
-            [str(pythonw), str(service_py)],
-            creationflags=(
-                subprocess.DETACHED_PROCESS |
-                subprocess.CREATE_NEW_PROCESS_GROUP
-            ),
-            close_fds=True,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        if platform.system() == "Windows":
+            subprocess.Popen(
+                [str(pythonw), str(service_py)],
+                creationflags=(
+                    subprocess.DETACHED_PROCESS |
+                    subprocess.CREATE_NEW_PROCESS_GROUP
+                ),
+                close_fds=True,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        else:
+            # macOS / Linux: start_new_session=True replaces Windows creationflags
+            subprocess.Popen(
+                [str(pythonw), str(service_py)],
+                start_new_session=True,
+                close_fds=True,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
     except FileNotFoundError as exc:
         print(f"[agenttalk session_start_hook] Setup files missing — run 'agenttalk setup': {exc}", file=sys.stderr)
     except Exception as exc:
