@@ -45,12 +45,22 @@ def _write_path_files(pythonw: Path) -> None:
     can find pythonw.exe and service.py without importing from the agenttalk package.
     """
     AGENTTALK_DIR.mkdir(parents=True, exist_ok=True)
-    (AGENTTALK_DIR / 'pythonw_path.txt').write_text(
-        str(pythonw.resolve()), encoding='utf-8'
-    )
-    (AGENTTALK_DIR / 'service_path.txt').write_text(
-        str(SERVICE_PATH.resolve()), encoding='utf-8'
-    )
+    pythonw_txt = AGENTTALK_DIR / 'pythonw_path.txt'
+    service_txt = AGENTTALK_DIR / 'service_path.txt'
+    try:
+        pythonw_txt.write_text(str(pythonw.resolve()), encoding='utf-8')
+    except OSError as exc:
+        raise OSError(
+            f"Cannot write {pythonw_txt}: {exc}\n"
+            "Check that the AgentTalk directory is writable."
+        ) from exc
+    try:
+        service_txt.write_text(str(SERVICE_PATH.resolve()), encoding='utf-8')
+    except OSError as exc:
+        raise OSError(
+            f"Cannot write {service_txt}: {exc}\n"
+            "Check that the AgentTalk directory is writable."
+        ) from exc
 
 
 def _build_hook_command(pythonw: Path, hook_script: Path) -> str:
@@ -130,7 +140,14 @@ def register_hooks(
     settings: dict = {}
     if settings_path.exists():
         raw = settings_path.read_text(encoding='utf-8')
-        settings = json.loads(raw)
+        try:
+            settings = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                f"Cannot parse {settings_path}: {exc}\n"
+                "The file contains invalid JSON. Back it up, fix the syntax, "
+                "then re-run 'agenttalk setup'."
+            ) from exc
 
     hooks_section = settings.setdefault('hooks', {})
 
@@ -158,8 +175,12 @@ def register_hooks(
     # Atomic write — write to .tmp then replace to avoid half-written settings.json
     # CRITICAL: encoding='utf-8' (NOT 'utf-8-sig') — BOM breaks Claude Code JSON parser
     tmp_path = settings_path.with_suffix('.json.tmp')
-    tmp_path.write_text(json.dumps(settings, indent=2), encoding='utf-8')
-    tmp_path.replace(settings_path)
+    try:
+        tmp_path.write_text(json.dumps(settings, indent=2), encoding='utf-8')
+        tmp_path.replace(settings_path)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
     print(f"AgentTalk hooks registered in {settings_path}")
     print(f"  Stop hook: {STOP_HOOK_PATH.resolve()}")

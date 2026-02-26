@@ -83,21 +83,30 @@ def download_model() -> None:
             )
             raise
 
+        # NOTE: timeout=30 only covers connection + headers; the streaming body
+        # has no per-chunk timeout. A stalled mid-stream transfer will hang
+        # indefinitely. Use a requests-toolbelt or urllib3 workaround if needed.
+        tmp = dest.with_suffix(dest.suffix + ".tmp")
         total = int(response.headers.get("content-length", 0))
-        with (
-            open(dest, "wb") as f,
-            tqdm(
-                total=total,
-                unit="B",
-                unit_scale=True,
-                unit_divisor=1024,
-                desc=filename,
-            ) as bar,
-        ):
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-                bar.update(len(chunk))
+        try:
+            with (
+                open(tmp, "wb") as f,
+                tqdm(
+                    total=total,
+                    unit="B",
+                    unit_scale=True,
+                    unit_divisor=1024,
+                    desc=filename,
+                ) as bar,
+            ):
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+                    bar.update(len(chunk))
+        except Exception:
+            tmp.unlink(missing_ok=True)
+            raise
 
+        tmp.rename(dest)
         print(f"  Saved to {dest}")
 
 

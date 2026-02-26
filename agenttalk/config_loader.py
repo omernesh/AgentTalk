@@ -10,14 +10,14 @@ Phase 5: save_config() added for runtime persistence of all 7 CFG-02 settings fi
 import json
 import logging
 import os
-import pathlib
 import threading
+from pathlib import Path
 
 
-def _config_path() -> pathlib.Path:
+def _config_path() -> Path:
     """Return the platform path to config.json."""
-    appdata = os.environ.get("APPDATA", str(pathlib.Path.home()))
-    return pathlib.Path(appdata) / "AgentTalk" / "config.json"
+    appdata = os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))
+    return Path(appdata) / "AgentTalk" / "config.json"
 
 
 _CONFIG_LOCK = threading.Lock()
@@ -82,6 +82,10 @@ def save_config(state: dict) -> None:
 
     tmp = path.with_suffix(".json.tmp")
     with _CONFIG_LOCK:
-        tmp.write_text(json.dumps(persisted, indent=2), encoding="utf-8")
-        tmp.replace(path)  # os.replace() — atomic on Windows
+        try:
+            tmp.write_text(json.dumps(persisted, indent=2), encoding="utf-8")
+            tmp.replace(path)  # os.replace() — atomic on Windows
+        except Exception:
+            tmp.unlink(missing_ok=True)
+            raise
     logging.debug("Config saved to %s", path)
