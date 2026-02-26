@@ -381,7 +381,7 @@ def _start_http_server() -> threading.Thread:
         app,
         host="127.0.0.1",
         port=5050,
-        log_level="warning",
+        log_config=None,
     )
     server = _BackgroundServer(config)
     def _run_server():
