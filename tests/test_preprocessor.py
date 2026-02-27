@@ -138,3 +138,41 @@ def test_preprocess_returns_list():
     from agenttalk.preprocessor import preprocess
     result = preprocess("Hello world.")
     assert isinstance(result, list)
+
+
+# ---------------------------------------------------------------------------
+# Emotional / prosody punctuation regression tests (quick task 5)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("label, input_text, char", [
+    ("em_dash",         "It was great\u2014really.",       "\u2014"),
+    ("ellipsis_char",   "Well\u2026 I suppose so.",         "\u2026"),
+    ("exclamation",     "That is amazing!",                 "!"),
+    ("question",        "Are you sure?",                    "?"),
+    ("curly_open_dbl",  "\u201cHello there\u201d",          "\u201c"),
+    ("curly_close_dbl", "\u201cHello there\u201d",          "\u201d"),
+    ("curly_open_sgl",  "\u2018right\u2019",                "\u2018"),
+    ("curly_close_sgl", "\u2018right\u2019",                "\u2019"),
+    ("double_dash",     "It was great--really.",            "--"),
+    ("ascii_ellipsis",  "Well... I suppose so.",            "..."),
+], ids=lambda x: x if isinstance(x, str) and len(x) < 20 else None)
+def test_strip_markdown_preserves_emotional_punctuation(label, input_text, char):
+    """Verify that each class of emotional/prosody punctuation survives strip_markdown."""
+    from agenttalk.preprocessor import strip_markdown
+    result = strip_markdown(input_text)
+    assert char in result, (
+        f"strip_markdown stripped {char!r} from {input_text!r} \u2192 {result!r}"
+    )
+
+
+def test_strip_markdown_preserves_mixed_emotional():
+    """Integration test: a sentence mixing multiple emotional punctuation classes."""
+    from agenttalk.preprocessor import strip_markdown
+    input_text = "Wow\u2014that\u2019s amazing! \u201cReally\u2026\u201d she asked?"
+    result = strip_markdown(input_text)
+    for char in ["\u2014", "\u2019", "!", "\u201c", "\u2026", "\u201d", "?"]:
+        assert char in result, (
+            f"strip_markdown stripped {char!r} from {input_text!r} \u2192 {result!r}"
+        )
+    assert "Wow" in result
+    assert "amazing" in result

@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-02-27T20:37:04Z"
+last_updated: "2026-02-28T00:00:00Z"
 progress:
   total_phases: 6
   completed_phases: 6
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-02-26)
 Phase: 5 of 6 (Configuration, Voice/Model Switching, and Slash Commands) — IN PROGRESS
 Plan: 1 of 3 complete (05-01 done)
 Status: Wave 1 complete — save_config, /config + /stop endpoints, STATE engine keys added
-Last activity: 2026-02-27 - Completed quick task 4: Google Antigravity IDE integration
+Last activity: 2026-02-28 - Completed quick task 5: Audit preprocessor emotional-punctuation preservation
 
 Progress: [████░░░░░░] 33%
 
@@ -77,6 +77,7 @@ Recent decisions affecting current work:
 - [quick-4]: Antigravity uses ~/.gemini/antigravity/ on all platforms — no OS branching in dir helpers (unlike opencode.py)
 - [quick-4]: Antigravity is VS Code fork — existing agenttalk-vscode-1.0.0.vsix compatible, no new extension build needed
 - [quick-4]: Antigravity integration is instruction-based (like OpenClaw) — no lifecycle hook API confirmed
+- [quick-5]: strip_markdown() never stripped emotional punctuation — audit confirmed no fix needed, only regression tests and docstring added
 
 ### Pending Todos
 
@@ -95,9 +96,10 @@ Recent decisions affecting current work:
 | 2 | Tray Model submenu (kokoro/piper) and context-aware Voice submenu per engine | 2026-02-26 | 691966d | | [2-tray-icon-model-selection-and-per-model-](.planning/quick/2-tray-icon-model-selection-and-per-model-/) |
 | 3 | Cross-platform service + PyPI v1.1.0 + OpenClaw + VSCode extension + opencode + OpenAI CLI pipe | 2026-02-26 | 25d849b | Gaps | [3-community-expansion-cross-platform-mul](.planning/quick/3-community-expansion-cross-platform-mul/) |
 | 4 | Google Antigravity IDE integration: skill, workflow, register_antigravity_hooks(), --antigravity flag | 2026-02-27 | 62a9689 | Verified | [4-add-google-antigravity-ide-integration](.planning/quick/4-add-google-antigravity-ide-integration/) |
+| 5 | Audit preprocessor emotional-punctuation: 11 regression tests + preservation docstring + bold/italic regex fix | 2026-02-28 | 258d815 | Verified | [5-audit-text-filter-py-to-check-if-emotion](.planning/quick/5-audit-text-filter-py-to-check-if-emotion/) |
 
 ## Session Continuity
 
-Last session: 2026-02-27
-Last activity: 2026-02-27 - Completed quick task 4 (full mode, verified): Google Antigravity IDE integration
+Last session: 2026-02-28
+Last activity: 2026-02-28 - Completed quick task 5 (verified): audit preprocessor emotional-punctuation preservation
 Resume file: None
