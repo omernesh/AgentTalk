@@ -5,8 +5,9 @@ Registered as a console_scripts entry point in pyproject.toml:
     agenttalk = "agenttalk.cli:main"
 
 Subcommands:
-    agenttalk setup            — Download model, register hooks, register auto-start
-    agenttalk setup --opencode — Also register opencode hooks
+    agenttalk setup               — Download model, register hooks, register auto-start
+    agenttalk setup --opencode    — Also register opencode hooks
+    agenttalk setup --antigravity — Also install Antigravity skill and workflow files
     agenttalk setup --no-autostart — Skip auto-start registration
 
 Requirements: INST-01 (CLI entry point), INST-02, INST-03, INST-04
@@ -41,6 +42,11 @@ def main() -> None:
         action="store_true",
         help="Also register opencode hooks (in addition to Claude Code hooks)",
     )
+    setup_parser.add_argument(
+        "--antigravity",
+        action="store_true",
+        help="Also install Antigravity skill and workflow files to ~/.gemini/antigravity/",
+    )
     setup_parser.set_defaults(func=_cmd_setup)
 
     args = parser.parse_args()
@@ -56,12 +62,14 @@ def _cmd_setup(args: argparse.Namespace) -> None:
       4. Register auto-start mechanism (platform-appropriate)
       5. Create AgentTalk.lnk desktop shortcut (Windows only)
       6. [--opencode] Register opencode hooks
+      7. [--antigravity] Install Antigravity skill and workflow files
 
     Order matters: model download first (largest risk of failure), then hooks
     (idempotent merge), then auto-start, then shortcut (idempotent overwrite).
     """
     no_autostart = getattr(args, "no_autostart", False)
     register_opencode = getattr(args, "opencode", False)
+    register_antigravity = getattr(args, "antigravity", False)
 
     print("=== AgentTalk Setup ===\n")
 
@@ -119,6 +127,16 @@ def _cmd_setup(args: argparse.Namespace) -> None:
             register_opencode_hooks()
         except Exception as exc:
             print(f"\nWARNING: opencode hook registration failed: {exc}")
+            # Non-fatal
+
+    # Optional: Install Antigravity skill and workflow
+    if register_antigravity:
+        print("\nInstalling Antigravity skill and workflow...")
+        try:
+            from agenttalk.integrations.antigravity import register_antigravity_hooks
+            register_antigravity_hooks()
+        except Exception as exc:
+            print(f"\nWARNING: Antigravity setup failed: {exc}")
             # Non-fatal
 
     print("\nSetup complete!")
