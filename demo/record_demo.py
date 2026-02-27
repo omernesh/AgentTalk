@@ -155,7 +155,10 @@ class Recorder:
                 self._proc.stdin.flush()
                 self._proc.wait(timeout=10)
             except Exception:
-                self._proc.terminate()
+                try:
+                    self._proc.terminate()
+                except OSError:
+                    pass  # process already gone
         print("  ■ Recording stopped")
 
     def __enter__(self):
@@ -163,4 +166,7 @@ class Recorder:
         return self
 
     def __exit__(self, *_):
-        self.stop()
+        try:
+            self.stop()
+        except Exception:
+            pass  # don't let stop() failures mask the original exception
