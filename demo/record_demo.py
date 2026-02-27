@@ -10,6 +10,7 @@ Prerequisites:
   FFmpeg on PATH
   Windows Terminal (wt.exe) installed
 """
+import re
 import subprocess
 import sys
 import time
@@ -66,3 +67,45 @@ def check_prerequisites() -> None:
             "Start it with: pythonw -m agenttalk.service"
         )
     print("✓ Prerequisites OK")
+
+
+# Keywords that identify loopback/output capture devices (in priority order)
+_LOOPBACK_KEYWORDS = ["stereo mix", "what u hear", "wave out", "output", "loopback"]
+
+
+def detect_audio_device() -> str:
+    """
+    Return the first DirectShow audio device suitable for system audio capture.
+
+    Runs: ffmpeg -list_devices true -f dshow -i dummy
+    FFmpeg exits with code 1 even on success — check stderr, not returncode.
+    Falls back to the first available device if no loopback device is found.
+    """
+    result = subprocess.run(
+        ["ffmpeg", "-list_devices", "true", "-f", "dshow", "-i", "dummy"],
+        capture_output=True,
+    )
+    output = result.stderr.decode("utf-8", errors="ignore")
+
+    # Extract quoted device names from lines like:  "Device Name"
+    devices = re.findall(r'"([^"]+)"', output)
+
+    # Filter out alternative names (they start with @device_)
+    devices = [d for d in devices if not d.startswith("@device_")]
+
+    if not devices:
+        sys.exit(
+            "ERROR: No DirectShow audio devices found.\n"
+            "Enable 'Stereo Mix' in Windows Sound Settings → Recording → Show Disabled Devices."
+        )
+
+    # Prefer loopback/output devices
+    for keyword in _LOOPBACK_KEYWORDS:
+        for d in devices:
+            if keyword in d.lower():
+                print(f"✓ Audio device: {d}")
+                return d
+
+    # Fallback: first device (usually microphone)
+    print(f"⚠ No loopback device found, using: {devices[0]}")
+    return devices[0]
