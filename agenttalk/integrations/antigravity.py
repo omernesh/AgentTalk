@@ -6,14 +6,8 @@ workflow files to the Antigravity global directories.
 
 Called by: agenttalk setup --antigravity
 """
-import json
-import os
-import platform
 import shutil
-import sys
 from pathlib import Path
-
-from agenttalk.config_loader import _config_dir
 
 
 # ---------------------------------------------------------------------------
@@ -66,8 +60,22 @@ def register_antigravity_hooks() -> None:
 
     Creates directories if they do not exist.
     Idempotent: re-running overwrites with current versions.
+
+    Validates that both source files exist before creating any destination
+    directories or performing any copy, so the installation is never left in
+    a partial state.
     """
     src_dir = _integration_files_dir()
+
+    skill_src = src_dir / "SKILL.md"
+    workflow_src = src_dir / "session_workflow.md"
+
+    missing = [p for p in (skill_src, workflow_src) if not p.exists()]
+    if missing:
+        raise FileNotFoundError(
+            "Antigravity integration source files not found:\n"
+            + "\n".join(f"  {p}" for p in missing)
+        )
 
     skills_dir = _antigravity_skills_dir()
     skills_dir.mkdir(parents=True, exist_ok=True)
@@ -76,10 +84,10 @@ def register_antigravity_hooks() -> None:
     workflows_dir.mkdir(parents=True, exist_ok=True)
 
     # Copy skill file
-    shutil.copy2(src_dir / "SKILL.md", skills_dir / "agenttalk.md")
+    shutil.copy2(skill_src, skills_dir / "agenttalk.md")
 
     # Copy session workflow
-    shutil.copy2(src_dir / "session_workflow.md", workflows_dir / "agenttalk_start.md")
+    shutil.copy2(workflow_src, workflows_dir / "agenttalk_start.md")
 
     print(f"  Antigravity skill installed: {skills_dir / 'agenttalk.md'}")
     print(f"  Antigravity workflow installed: {workflows_dir / 'agenttalk_start.md'}")

@@ -61,8 +61,8 @@ def _cmd_setup(args: argparse.Namespace) -> None:
       3. Register slash commands in ~/.claude/commands/
       4. Register auto-start mechanism (platform-appropriate)
       5. Create AgentTalk.lnk desktop shortcut (Windows only)
-      6. [--opencode] Register opencode hooks
-      7. [--antigravity] Install Antigravity skill and workflow files
+      [--opencode]     Register opencode hooks (optional)
+      [--antigravity]  Install Antigravity skill and workflow files (optional)
 
     Order matters: model download first (largest risk of failure), then hooks
     (idempotent merge), then auto-start, then shortcut (idempotent overwrite).
