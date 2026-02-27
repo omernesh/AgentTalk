@@ -225,3 +225,23 @@ def type_prompt(text: str) -> None:
     time.sleep(0.2)
     pyautogui.press("enter")
     print(f"  Typed: {text!r}")
+
+
+def _config_post(payload: dict) -> None:
+    """POST a partial config update to AgentTalk. Logs failures but does not abort."""
+    try:
+        r = requests.post(f"{AGENTTALK_URL}/config", json=payload, timeout=3)
+        if r.status_code != 200:
+            print(f"  ⚠ Config update failed: {r.status_code} {r.text}")
+    except requests.exceptions.RequestException as e:
+        print(f"  ⚠ Config update error: {e}")
+
+
+def reset_voice(voice: str = "af_heart") -> None:
+    """Reset AgentTalk voice to the specified value."""
+    _config_post({"voice": voice})
+
+
+def reset_speech_mode(mode: str = "auto") -> None:
+    """Reset AgentTalk speech_mode to the specified value."""
+    _config_post({"speech_mode": mode})

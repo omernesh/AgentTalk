@@ -86,3 +86,23 @@ def test_ffmpeg_cmd_contains_audio_device():
 def test_ffmpeg_cmd_output_path():
     cmd = build_ffmpeg_cmd("Stereo Mix", Path("demo/clip.mp4"))
     assert str(Path("demo/clip.mp4")) == cmd[-1]
+
+
+from record_demo import reset_speech_mode, reset_voice
+
+
+def test_reset_voice():
+    with patch("record_demo.requests.post") as mock_post:
+        mock_post.return_value = MagicMock(status_code=200)
+        reset_voice("af_heart")
+        mock_post.assert_called_once()
+        call_json = mock_post.call_args[1]["json"]
+        assert call_json["voice"] == "af_heart"
+
+
+def test_reset_speech_mode():
+    with patch("record_demo.requests.post") as mock_post:
+        mock_post.return_value = MagicMock(status_code=200)
+        reset_speech_mode("auto")
+        call_json = mock_post.call_args[1]["json"]
+        assert call_json["speech_mode"] == "auto"
