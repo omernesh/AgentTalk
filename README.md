@@ -101,10 +101,11 @@ Switch anytime with `/agenttalk:voice [name]` or the tray menu. Changes take eff
 
 Right-click the system tray icon:
 
-- **Mute / Unmute** — instant toggle, checkmark shows state
-- **Model** — switch between Kokoro and Piper
-- **Voice** — full voice list with live preview
-- **Quit**
+- **Mute / Unmute** — instant toggle, checkmark shows current state
+- **Model** — submenu: switch between Kokoro and Piper (radio buttons)
+- **Voice** — context-aware submenu: Kokoro voices when on Kokoro, Piper `.onnx` stems when on Piper
+- **Active: {voice}** — read-only display of the currently selected voice
+- **Quit** — stops the service and removes the tray icon
 
 The icon animates while speaking and returns to default when playback finishes.
 
