@@ -96,7 +96,7 @@ Recent decisions affecting current work:
 | 2 | Tray Model submenu (kokoro/piper) and context-aware Voice submenu per engine | 2026-02-26 | 691966d | | [2-tray-icon-model-selection-and-per-model-](.planning/quick/2-tray-icon-model-selection-and-per-model-/) |
 | 3 | Cross-platform service + PyPI v1.1.0 + OpenClaw + VSCode extension + opencode + OpenAI CLI pipe | 2026-02-26 | 25d849b | Gaps | [3-community-expansion-cross-platform-mul](.planning/quick/3-community-expansion-cross-platform-mul/) |
 | 4 | Google Antigravity IDE integration: skill, workflow, register_antigravity_hooks(), --antigravity flag | 2026-02-27 | 62a9689 | Verified | [4-add-google-antigravity-ide-integration](.planning/quick/4-add-google-antigravity-ide-integration/) |
-| 5 | Audit preprocessor emotional-punctuation: 11 regression tests + preservation docstring | 2026-02-28 | f67937d | Verified | [5-audit-text-filter-py-to-check-if-emotion](.planning/quick/5-audit-text-filter-py-to-check-if-emotion/) |
+| 5 | Audit preprocessor emotional-punctuation: 11 regression tests + preservation docstring + bold/italic regex fix | 2026-02-28 | 258d815 | Verified | [5-audit-text-filter-py-to-check-if-emotion](.planning/quick/5-audit-text-filter-py-to-check-if-emotion/) |
 
 ## Session Continuity
 
