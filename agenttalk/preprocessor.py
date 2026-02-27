@@ -24,6 +24,13 @@ def strip_markdown(text: str) -> str:
 
     Returns:
         Text with markdown syntax removed and whitespace normalized.
+
+    Preserved (pass through unchanged):
+        Emotional/prosody punctuation — em-dash (\u2014/\\u2014), ellipsis (\u2026/\\u2026),
+        curly quotes (\\u201c \\u201d \\u2018 \\u2019), exclamation (!), question (?),
+        ASCII double-dash (--), ASCII ellipsis (...).
+        Kokoro's prosody engine uses these for pacing and intonation; stripping
+        them would flatten speech expressiveness.
     """
     # 1. Fenced code blocks (MUST come before inline code)
     text = re.sub(r"```[\s\S]*?```", " ", text)
