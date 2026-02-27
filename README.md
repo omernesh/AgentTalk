@@ -1,185 +1,239 @@
 # AgentTalk
 
-Real-time text-to-speech for Claude Code output — offline, local, no API keys.
+**Real-time, offline text-to-speech for AI coding agents — no API keys, no cloud, no lag.**
 
-Claude Code's responses are spoken aloud as they complete, hands-free, without leaving the terminal.
-
-**Requires Python 3.11.** Python 3.12 and above are not supported (see [Troubleshooting](#troubleshooting)).
+Your AI agent's responses are spoken aloud as they complete. Hands-free. Runs locally. Works everywhere.
 
 ---
 
-## Installation
+## Works with your entire AI stack
 
-### Prerequisites
+| Tool | Integration |
+|------|-------------|
+| **Claude Code** | Native hooks — auto-speaks every response |
+| **Google Antigravity** | Native skill + session workflow |
+| **VSCode** + Roo Code + KiloCode | VSIX extension with status bar |
+| **opencode** | Session start/stop hooks |
+| **OpenClaw** (ClawHub) | Publishable skill |
+| **OpenAI CLI** | Pipe wrapper (`openai … \| agenttalk pipe`) |
 
-- Windows 11
-- Python 3.11 (exactly — see [Python version requirements](#python-version-requirements-311-only))
-- A working audio output device
+One service. Any agent. Any IDE.
 
-### Install and setup
+---
+
+## Install
 
 ```bash
 pip install git+https://github.com/omernesh/AgentTalk
 agenttalk setup
 ```
 
-`agenttalk setup` will:
-1. Download the Kokoro ONNX model files (~310 MB) to `%APPDATA%\AgentTalk\models\`
-2. Register the `Stop` and `SessionStart` hooks in `~/.claude/settings.json`
-3. Create an `AgentTalk.lnk` shortcut on your desktop
+**Runs on:** Windows · macOS · Linux · Python 3.11+
 
----
-
-## Quickstart
+For specific integrations, pass additional flags to setup:
 
 ```bash
-# 1. Install
-pip install git+https://github.com/omernesh/AgentTalk
-
-# 2. Download model and register hooks
-agenttalk setup
-
-# 3. Launch the service (or double-click the desktop shortcut)
-pythonw agenttalk/service.py
+agenttalk setup                   # Claude Code (default)
+agenttalk setup --antigravity     # + Google Antigravity IDE
+agenttalk setup --opencode        # + opencode
 ```
 
-Open Claude Code. The next Claude response will be spoken aloud automatically.
+After setup, start the service:
+
+```bash
+python -m agenttalk.service       # foreground
+pythonw -m agenttalk.service      # background (Windows)
+```
+
+Or double-click the **AgentTalk** desktop shortcut created by setup.
 
 ---
 
-## Available Voices
+## How it works
 
-Switch voices with `/agenttalk:voice [name]` or via the tray menu.
+AgentTalk runs a local HTTP service on `localhost:5050`. Agent hooks and extensions call `POST /speak` at the end of each response. The service synthesizes speech using [Kokoro](https://github.com/thewh1teagle/kokoro-onnx) (default) or [Piper](https://github.com/rhasspy/piper) — fully offline, no cloud, no API keys.
+
+```
+Claude Code / VSCode / Antigravity / opencode
+           ↓
+    POST localhost:5050/speak
+           ↓
+    Kokoro / Piper TTS engine
+           ↓
+      🔊 Your speakers
+```
+
+---
+
+## Slash commands
+
+Type these as your message in Claude Code (or any supported agent):
+
+| Command | What it does |
+|---------|-------------|
+| `/agenttalk:mode` | Switch between **auto** (speaks every reply) and **semi-auto** (speak on demand) |
+| `/agenttalk:speak` | Speak the last response aloud (semi-auto mode) |
+| `/agenttalk:voice [name]` | Switch voice — e.g. `/agenttalk:voice bf_emma` |
+| `/agenttalk:model [kokoro\|piper]` | Switch TTS engine |
+| `/agenttalk:config` | Interactive configuration menu |
+| `/agenttalk:start` | Start the service if it is not running |
+| `/agenttalk:stop` | Stop the service and silence audio |
+| `/agenttalk:antigravity` | `import antigravity` — you can use AgentTalk to fly 🚀 |
+
+---
+
+## Voices
+
+30 voices across four accent families, all local, all offline:
 
 | Prefix | Region | Voices |
 |--------|--------|--------|
-| `af_` | American Female | `af_heart` (default), `af_bella`, `af_nicole`, `af_aoede`, `af_kore`, `af_sarah`, `af_sky` |
+| `af_` | American Female | `af_heart` ⭐, `af_bella`, `af_nicole`, `af_aoede`, `af_kore`, `af_sarah`, `af_sky` |
 | `am_` | American Male | `am_adam`, `am_michael`, `am_echo`, `am_eric`, `am_fenrir`, `am_liam`, `am_onyx`, `am_puck`, `am_santa` |
 | `bf_` | British Female | `bf_emma`, `bf_isabella`, `bf_alice`, `bf_lily` |
 | `bm_` | British Male | `bm_george`, `bm_lewis`, `bm_daniel`, `bm_fable`, `bm_norton`, `bm_oscar` |
 
-The default voice is `af_heart`.
+Switch anytime with `/agenttalk:voice [name]` or the tray menu. Changes take effect on the next utterance and persist across restarts.
 
 ---
 
-## Slash Commands
+## Tray menu (Windows)
 
-Run these from the Claude Code terminal (type the command as your message):
+Right-click the system tray icon:
 
-| Command | Description |
-|---------|-------------|
-| `/agenttalk:start` | Launch the AgentTalk service if it is not running |
-| `/agenttalk:stop` | Stop the service and silence any playing audio |
-| `/agenttalk:voice [name]` | Switch the active voice (e.g., `/agenttalk:voice af_bella`) |
-| `/agenttalk:model [kokoro\|piper]` | Switch the TTS engine (`kokoro` is the only working engine in v1) |
+- **Mute / Unmute** — instant toggle, checkmark shows state
+- **Model** — switch between Kokoro and Piper
+- **Voice** — full voice list with live preview
+- **Quit**
 
-Voice and model changes take effect immediately for the next utterance and persist across restarts.
-
----
-
-## Tray Menu
-
-Right-click the AgentTalk icon in the Windows system tray to access:
-
-- **Mute / Unmute** — toggle TTS on and off (checkmark shows current state)
-- **Voice** — submenu listing all available Kokoro voices; click to switch
-- **Quit** — stop the service and remove the tray icon
-
-The tray icon changes appearance while TTS is actively speaking and returns to default when playback finishes.
+The icon animates while speaking and returns to default when playback finishes.
 
 ---
 
 ## Configuration
 
-Settings are persisted in `%APPDATA%\AgentTalk\config.json`. All settings can be changed at runtime without restarting the service.
+All settings live in the platform config directory and persist across restarts. Change them at runtime — no restart needed.
+
+| Platform | Config location |
+|----------|----------------|
+| Windows | `%APPDATA%\AgentTalk\config.json` |
+| macOS | `~/Library/Application Support/AgentTalk/config.json` |
+| Linux | `~/.config/AgentTalk/config.json` |
 
 | Setting | Default | How to change |
 |---------|---------|---------------|
-| `voice` | `af_heart` | `/agenttalk:voice [name]` or tray menu |
-| `speed` | `1.0` | POST to `/config` with `{"speed": 1.2}` |
-| `volume` | `1.0` | POST to `/config` with `{"volume": 0.8}` |
-| `model` | `kokoro` | `/agenttalk:model [kokoro\|piper]` |
-| `muted` | `false` | Tray Mute toggle |
-| `pre_cue_path` | `null` | POST to `/config` with `{"pre_cue_path": "C:\\path\\bell.wav"}` |
-| `post_cue_path` | `null` | POST to `/config` with `{"post_cue_path": "C:\\path\\bell.wav"}` |
+| `voice` | `af_heart` | `/agenttalk:voice [name]` or tray |
+| `model` | `kokoro` | `/agenttalk:model [kokoro\|piper]` or tray |
+| `speech_mode` | `auto` | `/agenttalk:mode` |
+| `speed` | `1.0` | `/agenttalk:config` → option 4 |
+| `volume` | `1.0` | `/agenttalk:config` → option 5 |
+| `muted` | `false` | Tray → Mute |
+| `pre_cue_path` | `null` | `/agenttalk:config` → option 1 |
+| `post_cue_path` | `null` | `/agenttalk:config` → option 2 |
+
+---
+
+## Integrations
+
+### Claude Code (built-in)
+
+`agenttalk setup` automatically registers `Stop` and `SessionStart` hooks in `~/.claude/settings.json`.
+
+### Google Antigravity
+
+```bash
+agenttalk setup --antigravity
+```
+
+Installs a native Antigravity skill to `~/.gemini/antigravity/skills/agenttalk.md` and a session startup workflow to `~/.gemini/antigravity/global_workflows/agenttalk_start.md`. Alternatively, install the VSCode VSIX extension directly — Antigravity is a VS Code fork and the extension is fully compatible.
+
+### VSCode / Roo Code / KiloCode
+
+Install the extension from `integrations/vscode/`:
+
+```bash
+code --install-extension integrations/vscode/agenttalk-vscode-1.0.0.vsix
+```
+
+The extension auto-detects Roo Code and KiloCode and hooks their message events. A status bar item shows service state.
+
+### opencode
+
+```bash
+agenttalk setup --opencode
+```
+
+Registers `session_start_hook.py` and `stop_hook.py` in `~/.config/opencode/hooks/`.
+
+### OpenAI CLI
+
+```bash
+# Pipe any CLI tool through AgentTalk
+openai api chat.completions.create … | python integrations/openai-cli/stream_speak.py
+```
+
+Or source the shell function from `integrations/openai-cli/README.md` for a `speak-openai` shortcut.
+
+### OpenClaw (ClawHub)
+
+Install the AgentTalk skill from `integrations/openclaw/SKILL.md` directly into your ClawHub workspace.
+
+---
+
+## REST API
+
+The service exposes a simple HTTP API at `localhost:5050`:
+
+```bash
+# Speak text
+curl -s -X POST localhost:5050/speak \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Hello from AgentTalk"}'
+
+# Check service status
+curl localhost:5050/health
+
+# Get / update config
+curl localhost:5050/config
+curl -X POST localhost:5050/config -d '{"voice": "bf_emma", "speed": 1.2}'
+
+# Mute / unmute
+curl -X POST localhost:5050/mute
+curl -X POST localhost:5050/unmute
+```
 
 ---
 
 ## Troubleshooting
 
-### WASAPI exclusive mode conflicts
+### Service not speaking
 
-**Symptom:** No audio plays, or you see `PaErrorCode -9984` in the log.
+1. Check it's running: `curl localhost:5050/health`
+2. Check hooks are registered: look for `agenttalk` in `~/.claude/settings.json` under `hooks.Stop` and `hooks.SessionStart`
+3. Re-run `agenttalk setup` to re-register (idempotent — won't duplicate)
 
-**Cause:** Some audio devices use WASAPI in exclusive mode, which blocks other applications from using the audio device simultaneously.
+### WASAPI exclusive mode conflicts (Windows)
 
-**Fix options:**
-1. In Windows Sound Settings, set your default output device to use "Shared" mode (not "Exclusive").
-2. Use an MME audio device instead of WASAPI — MME handles sample rate resampling automatically.
-3. If you have multiple audio devices, switch to one that uses WASAPI in shared mode.
+**Symptom:** No audio, or `PaErrorCode -9984` in the log.
 
-Check `%APPDATA%\AgentTalk\agenttalk.log` for the detected host API type:
-```
-Non-WASAPI device (MME) — using PortAudio default resampling.
-```
-or
-```
-WASAPI device detected — auto_convert enabled.
-```
+**Fix:** In Windows Sound Settings, set your output device to "Shared" mode. Check `config.json` dir for `agenttalk.log` to see which audio mode was detected.
 
-### Kokoro model download issues
+### Kokoro model download fails
 
-**Symptom:** `agenttalk setup` fails with an HTTP error or download stalls.
+Re-run `agenttalk setup` — downloads are idempotent. Ensure `github.com` is reachable and you have ~400 MB free.
 
-**Fix options:**
-1. Check your internet connection and firewall settings — the download requires access to `github.com`.
-2. Ensure you have at least 400 MB of free disk space in `%APPDATA%`.
-3. If you see HTTP 404, the model URL may have changed — check the latest release at [thewh1teagle/kokoro-onnx releases](https://github.com/thewh1teagle/kokoro-onnx/releases) and update the URL in `agenttalk/installer.py`.
-4. Re-run `agenttalk setup` — downloads are idempotent (partially downloaded files are skipped and re-downloaded from scratch on retry).
+### Python 3.12+ on Windows
 
-**Partial download recovery:** If a download was interrupted, delete the incomplete file from `%APPDATA%\AgentTalk\models\` before re-running setup.
+The tray icon uses `pystray`, which has a known GIL compatibility issue on Python 3.12 on Windows. Use Python 3.11 if you need the tray icon on Windows. macOS and Linux are unaffected.
 
-### Python version requirements (3.11 only)
-
-**Symptom:** The service crashes immediately, or you see a GIL-related error on startup, or `pystray` fails to import.
-
-**Cause:** Python 3.12 introduced changes to the GIL (Global Interpreter Lock) that cause `pystray` to crash when the tray icon runs on the main thread. This is a known upstream issue with no fix released as of February 2026.
-
-**Fix:** Install Python 3.11 and use it for AgentTalk.
-
-Check your Python version:
 ```bash
-python --version
-# Must show: Python 3.11.x
-```
-
-Install Python 3.11 from [python.org/downloads](https://www.python.org/downloads/release/python-3118/) and re-install AgentTalk in a Python 3.11 virtual environment:
-```bash
-py -3.11 -m venv .venv
-.venv\Scripts\activate
+py -3.11 -m venv .venv && .venv\Scripts\activate
 pip install git+https://github.com/omernesh/AgentTalk
 agenttalk setup
 ```
-
-### Hook registration verification
-
-**Symptom:** Claude Code responses are not being spoken — the service is running but hooks do not fire.
-
-**Verify hooks are registered:**
-```bash
-python -m json.tool %USERPROFILE%\.claude\settings.json
-```
-
-Look for `"agenttalk"` entries under `"hooks"` > `"Stop"` and `"hooks"` > `"SessionStart"`.
-
-**Fix:** Re-run `agenttalk setup` to re-register the hooks. The registration is idempotent and will not duplicate existing entries.
-
-**Verify the hook paths are correct:** The hook command must point to the pythonw.exe in your current Python environment. If you have reinstalled AgentTalk into a different venv, re-run `agenttalk setup` to update the paths.
-
-**Verify async hooks:** Both hooks must have `"async": true` to avoid blocking Claude Code's UI. This is set automatically by `agenttalk setup`.
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT
