@@ -12,6 +12,7 @@ import atexit
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Literal
 
 import queue
 import time
@@ -239,7 +240,7 @@ class ConfigRequest(BaseModel):
         ge=0.0, le=1.0,
         examples=[1.0],
     )
-    model: str | None = Field(
+    model: Literal["kokoro", "piper"] | None = Field(
         None,
         description="TTS engine to use. 'kokoro' (default, high quality) or 'piper' (alternative, requires piper_model_path).",
         examples=["kokoro", "piper"],
@@ -264,7 +265,7 @@ class ConfigRequest(BaseModel):
         description="Absolute path to a Piper ONNX voice model (.onnx). Required when model='piper'.",
         examples=["C:/Users/user/AppData/Roaming/AgentTalk/models/piper/en_US-lessac-medium.onnx"],
     )
-    speech_mode: str | None = Field(
+    speech_mode: Literal["auto", "semi-auto"] | None = Field(
         None,
         description="Speech mode: 'auto' (speak every reply) or 'semi-auto' (only speak when /speak is invoked).",
         examples=["auto", "semi-auto"],

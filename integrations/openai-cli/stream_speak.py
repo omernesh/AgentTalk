@@ -40,7 +40,7 @@ def _post_speak(text: str, port: int = 5050) -> None:
     except urllib.error.URLError:
         pass  # Service offline or busy — silent fail by design
     except Exception as exc:
-        print(f"[agenttalk pipe] Unexpected error posting to /speak: {exc}", file=sys.stderr)
+        print(f"[agenttalk stream_speak] Unexpected error posting to /speak: {exc}", file=sys.stderr)
 
 
 def main() -> None:

@@ -63,7 +63,7 @@ class PiperEngine:
     def create(
         self,
         text: str,
-        voice: str = None,
+        voice: str | None = None,
         speed: float = 1.0,
         lang: str = "en-us",
     ) -> tuple[np.ndarray, int]:

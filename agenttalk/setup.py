@@ -6,17 +6,17 @@ Requirements: HOOK-05
 Called by: agenttalk setup CLI command (Phase 6) or directly: python -m agenttalk.setup
 """
 import json
-import os
 import shutil
 import sys
 from pathlib import Path
 
+from agenttalk.config_loader import _config_dir
+
 # ~/.claude/settings.json — user-scope hooks apply to all Claude Code projects
 SETTINGS_PATH = Path.home() / '.claude' / 'settings.json'
 
-# %APPDATA%\AgentTalk\ — service runtime directory (created by Phase 1)
-APPDATA = Path(os.environ.get('APPDATA', Path.home() / 'AppData' / 'Roaming'))
-AGENTTALK_DIR = APPDATA / 'AgentTalk'
+# Platform-appropriate config directory (cross-platform via _config_dir())
+AGENTTALK_DIR = _config_dir()
 
 # Hook scripts live in agenttalk/hooks/ relative to this file
 _THIS_DIR = Path(__file__).parent
@@ -44,7 +44,7 @@ def _get_pythonw_path() -> Path:
 
 def _write_path_files(pythonw: Path) -> None:
     """
-    Write absolute paths into %APPDATA%\\AgentTalk\\ so session_start_hook.py
+    Write absolute paths into the AgentTalk config directory so session_start_hook.py
     can find pythonw.exe and service.py without importing from the agenttalk package.
     """
     AGENTTALK_DIR.mkdir(parents=True, exist_ok=True)

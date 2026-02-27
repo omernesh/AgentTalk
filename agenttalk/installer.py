@@ -117,7 +117,7 @@ def download_model() -> None:
             tmp.unlink(missing_ok=True)
             raise
 
-        tmp.rename(dest)
+        tmp.replace(dest)
         print(f"  Saved to {dest}")
 
 
@@ -190,7 +190,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart={python} -m agenttalk.service
+ExecStart="{python}" -m agenttalk.service
 Restart=on-failure
 RestartSec=5
 
