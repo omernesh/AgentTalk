@@ -50,7 +50,7 @@ def strip_markdown(text: str) -> str:
     text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
 
     # 6. Bold and italic markers (**text**, *text*, __text__, _text_)
-    text = re.sub(r"[*_]{1,3}([^*_\n]+)[*_]{1,3}", r"\1", text)
+    text = re.sub(r"(\*{1,3}|_{1,3})([^*_\n]+)\1", r"\2", text)
 
     # 7. Blockquotes
     text = re.sub(r"^>\s+", "", text, flags=re.MULTILINE)
