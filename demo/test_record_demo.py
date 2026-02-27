@@ -104,5 +104,6 @@ def test_reset_speech_mode():
     with patch("record_demo.requests.post") as mock_post:
         mock_post.return_value = MagicMock(status_code=200)
         reset_speech_mode("auto")
+        mock_post.assert_called_once()
         call_json = mock_post.call_args[1]["json"]
         assert call_json["speech_mode"] == "auto"
