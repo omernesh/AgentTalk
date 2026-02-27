@@ -170,3 +170,58 @@ class Recorder:
             self.stop()
         except Exception:
             pass  # don't let stop() failures mask the original exception
+
+
+TERMINAL_TITLE = "agenttalk-demo"
+
+
+def launch_claude_terminal() -> None:
+    """
+    Open a new Windows Terminal window titled 'agenttalk-demo' and start Claude.
+
+    Uses wt.exe (Windows Terminal) with --title to make the window findable
+    by pygetwindow. Waits CLAUDE_STARTUP_SLEEP seconds for Claude to initialize.
+    """
+    print("Launching Windows Terminal + Claude...")
+    subprocess.Popen([
+        "wt.exe",
+        "--title", TERMINAL_TITLE,
+        "powershell", "-NoExit", "-Command", "claude",
+    ])
+    print(f"  Waiting {CLAUDE_STARTUP_SLEEP}s for Claude to start...")
+    time.sleep(CLAUDE_STARTUP_SLEEP)
+    print("✓ Claude terminal ready")
+
+
+def focus_terminal() -> None:
+    """
+    Bring the 'agenttalk-demo' terminal window to the foreground.
+    Raises RuntimeError if the window is not found.
+    """
+    windows = gw.getWindowsWithTitle(TERMINAL_TITLE)
+    if not windows:
+        raise RuntimeError(
+            f"Terminal window '{TERMINAL_TITLE}' not found.\n"
+            "Make sure wt.exe opened successfully."
+        )
+    win = windows[0]
+    win.activate()
+    time.sleep(0.5)  # Brief pause for focus to register
+
+
+def type_prompt(text: str) -> None:
+    """
+    Type text into the focused terminal window and press Enter.
+    Uses clipboard paste (Ctrl+V) for reliable Unicode input.
+    Falls back to pyautogui.write() if pyperclip is not installed.
+    """
+    focus_terminal()
+    try:
+        import pyperclip
+        pyperclip.copy(text)
+        pyautogui.hotkey("ctrl", "v")
+    except ImportError:
+        pyautogui.write(text, interval=TYPE_INTERVAL)
+    time.sleep(0.2)
+    pyautogui.press("enter")
+    print(f"  Typed: {text!r}")
