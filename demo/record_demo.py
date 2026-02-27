@@ -109,3 +109,58 @@ def detect_audio_device() -> str:
     # Fallback: first device (usually microphone)
     print(f"⚠ No loopback device found, using: {devices[0]}")
     return devices[0]
+
+
+def build_ffmpeg_cmd(audio_device: str, output_path: Path) -> list[str]:
+    """
+    Build the FFmpeg command list for screen + audio recording.
+
+    Video: gdigrab captures the full desktop at 30 fps.
+    Audio: dshow captures the specified device (loopback or mic).
+    Codec: libx264 ultrafast + aac 128k — fast enough not to drop frames.
+    """
+    return [
+        "ffmpeg", "-y",
+        # Video: full desktop capture
+        "-f", "gdigrab", "-framerate", "30", "-i", "desktop",
+        # Audio: DirectShow device
+        "-f", "dshow", "-i", f"audio={audio_device}",
+        # Encoding
+        "-vcodec", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-acodec", "aac", "-b:a", "128k",
+        str(output_path),
+    ]
+
+
+class Recorder:
+    """Context manager that starts and stops FFmpeg recording."""
+
+    def __init__(self, audio_device: str, output_path: Path) -> None:
+        self._cmd = build_ffmpeg_cmd(audio_device, output_path)
+        self._proc: subprocess.Popen | None = None
+
+    def start(self) -> None:
+        print(f"  ▶ Recording → {self._cmd[-1]}")
+        self._proc = subprocess.Popen(
+            self._cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+    def stop(self) -> None:
+        if self._proc and self._proc.poll() is None:
+            try:
+                self._proc.stdin.write(b"q")
+                self._proc.stdin.flush()
+                self._proc.wait(timeout=10)
+            except Exception:
+                self._proc.terminate()
+        print("  ■ Recording stopped")
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, *_):
+        self.stop()

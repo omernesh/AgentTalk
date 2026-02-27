@@ -66,3 +66,23 @@ def test_detect_fallback_to_mic():
         mock_run.return_value = MagicMock(returncode=1, stderr=FFMPEG_DSHOW_MIC_ONLY)
         device = detect_audio_device()
     assert device == "Microphone (USB Audio Device)"
+
+
+from record_demo import build_ffmpeg_cmd
+
+
+def test_ffmpeg_cmd_contains_gdigrab():
+    cmd = build_ffmpeg_cmd("Stereo Mix (Realtek)", Path("demo/01-auto.mp4"))
+    assert "-f" in cmd
+    assert "gdigrab" in cmd
+
+
+def test_ffmpeg_cmd_contains_audio_device():
+    cmd = build_ffmpeg_cmd("Stereo Mix (Realtek)", Path("demo/01-auto.mp4"))
+    joined = " ".join(cmd)
+    assert "Stereo Mix (Realtek)" in joined
+
+
+def test_ffmpeg_cmd_output_path():
+    cmd = build_ffmpeg_cmd("Stereo Mix", Path("demo/clip.mp4"))
+    assert str(Path("demo/clip.mp4")) == cmd[-1]
