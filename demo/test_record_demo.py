@@ -23,6 +23,11 @@ def test_check_ffmpeg_missing():
         assert check_ffmpeg() is False
 
 
+def test_check_ffmpeg_bad_exit():
+    with patch("record_demo.subprocess.run", side_effect=subprocess.CalledProcessError(1, "ffmpeg")):
+        assert check_ffmpeg() is False
+
+
 def test_check_agenttalk_success():
     with patch("record_demo.requests.get") as mock_get:
         mock_get.return_value = MagicMock(status_code=200)
