@@ -53,6 +53,8 @@ Or double-click the **AgentTalk** desktop shortcut created by setup.
 
 AgentTalk runs a local HTTP service on `localhost:5050`. Agent hooks and extensions call `POST /speak` at the end of each response. The service synthesizes speech using [Kokoro](https://github.com/thewh1teagle/kokoro-onnx) (default) or [Piper](https://github.com/rhasspy/piper) — fully offline, no cloud, no API keys.
 
+**Audio ducking (Windows):** While AgentTalk is speaking, all other system audio is automatically lowered to 50% volume via the Windows Core Audio API. Volume is restored the moment speech finishes — so you never miss a word over music or a video.
+
 ```
 Claude Code / VSCode / Antigravity / opencode
            ↓
