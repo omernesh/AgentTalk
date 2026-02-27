@@ -185,8 +185,8 @@ def launch_claude_terminal() -> None:
     print("Launching Windows Terminal + Claude...")
     subprocess.Popen([
         "wt.exe",
-        "--title", TERMINAL_TITLE,
-        "powershell", "-NoExit", "-Command", "claude",
+        "powershell", "-NoExit", "-Command",
+        f"$host.UI.RawUI.WindowTitle = '{TERMINAL_TITLE}'; claude",
     ])
     print(f"  Waiting {CLAUDE_STARTUP_SLEEP}s for Claude to start...")
     time.sleep(CLAUDE_STARTUP_SLEEP)
@@ -206,7 +206,7 @@ def focus_terminal() -> None:
         )
     win = windows[0]
     win.activate()
-    time.sleep(0.5)  # Brief pause for focus to register
+    time.sleep(1.0)  # Wait for focus to register (FFmpeg CPU load can slow this)
 
 
 def type_prompt(text: str) -> None:
@@ -220,7 +220,7 @@ def type_prompt(text: str) -> None:
         import pyperclip
         pyperclip.copy(text)
         pyautogui.hotkey("ctrl", "v")
-    except ImportError:
+    except (ImportError, Exception):
         pyautogui.write(text, interval=TYPE_INTERVAL)
     time.sleep(0.2)
     pyautogui.press("enter")
