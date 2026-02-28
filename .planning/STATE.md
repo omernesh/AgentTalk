@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-02-26)
 Phase: 5 of 6 (Configuration, Voice/Model Switching, and Slash Commands) — IN PROGRESS
 Plan: 1 of 3 complete (05-01 done)
 Status: Wave 1 complete — save_config, /config + /stop endpoints, STATE engine keys added
-Last activity: 2026-02-28 - Completed quick task 5: Audit preprocessor emotional-punctuation preservation
+Last activity: 2026-02-28 - Completed quick task 6: AgentTalk latency optimization (sentence-level TTS streaming + PostToolUse hook)
 
 Progress: [████░░░░░░] 33%
 
@@ -78,6 +78,8 @@ Recent decisions affecting current work:
 - [quick-4]: Antigravity is VS Code fork — existing agenttalk-vscode-1.0.0.vsix compatible, no new extension build needed
 - [quick-4]: Antigravity integration is instruction-based (like OpenClaw) — no lifecycle hook API confirmed
 - [quick-5]: strip_markdown() never stripped emotional punctuation — audit confirmed no fix needed, only regression tests and docstring added
+- [quick-6]: TTS_QUEUE items changed from list[str] batches to individual str sentences — duck/unduck per sentence accepted as correctness trade-off for immediate first-sentence playback
+- [quick-6]: _is_substantial threshold set at 80 chars + terminal punctuation to prevent speaking one-liners like "Reading file..." during rapid tool use
 
 ### Pending Todos
 
@@ -97,9 +99,10 @@ Recent decisions affecting current work:
 | 3 | Cross-platform service + PyPI v1.1.0 + OpenClaw + VSCode extension + opencode + OpenAI CLI pipe | 2026-02-26 | 25d849b | Gaps | [3-community-expansion-cross-platform-mul](.planning/quick/3-community-expansion-cross-platform-mul/) |
 | 4 | Google Antigravity IDE integration: skill, workflow, register_antigravity_hooks(), --antigravity flag | 2026-02-27 | 62a9689 | Verified | [4-add-google-antigravity-ide-integration](.planning/quick/4-add-google-antigravity-ide-integration/) |
 | 5 | Audit preprocessor emotional-punctuation: 11 regression tests + preservation docstring + bold/italic regex fix | 2026-02-28 | 258d815 | Verified | [5-audit-text-filter-py-to-check-if-emotion](.planning/quick/5-audit-text-filter-py-to-check-if-emotion/) |
+| 6 | Sentence-level TTS streaming + PostToolUse early-speaking hook | 2026-02-28 | 33c20ed | Verified | [6-implement-agenttalk-latency-optimization](.planning/quick/6-implement-agenttalk-latency-optimization/) |
 
 ## Session Continuity
 
 Last session: 2026-02-28
-Last activity: 2026-02-28 - Completed quick task 5 (verified): audit preprocessor emotional-punctuation preservation
+Last activity: 2026-02-28 - Completed quick task 6 (verified): AgentTalk latency optimization (sentence-level TTS streaming + PostToolUse hook)
 Resume file: None
