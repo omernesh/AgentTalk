@@ -245,3 +245,98 @@ def reset_voice(voice: str = "af_heart") -> None:
 def reset_speech_mode(mode: str = "auto") -> None:
     """Reset AgentTalk speech_mode to the specified value."""
     _config_post({"speech_mode": mode})
+
+
+def record_clip(name: str, audio_device: str, steps_fn) -> None:
+    """
+    Generic clip recorder.
+
+    Starts FFmpeg, runs steps_fn() (which types prompts), waits for the
+    clip duration, then stops FFmpeg.
+    """
+    duration = CLIP_DURATIONS[name]
+    output = DEMO_DIR / f"{name}.mp4"
+
+    print(f"\n{'='*60}")
+    print(f"CLIP: {name}  ({duration}s)")
+    print(f"{'='*60}")
+
+    time.sleep(BETWEEN_CLIP_SLEEP)
+
+    with Recorder(audio_device, output):
+        time.sleep(1)          # 1s buffer before typing
+        steps_fn()
+        print(f"  Waiting {duration}s for Claude + TTS to finish...")
+        time.sleep(duration)
+
+    print(f"✓ Saved: {output}")
+
+
+def clip_01_auto_speak(audio_device: str) -> None:
+    """Clip 1: Auto-TTS — Claude replies, AgentTalk speaks automatically."""
+    reset_voice("af_heart")
+    reset_speech_mode("auto")
+
+    def steps():
+        type_prompt("Tell me a fun one-sentence fact about octopuses.")
+
+    record_clip("01-auto-speak", audio_device, steps)
+
+
+def clip_02_voice_switch(audio_device: str) -> None:
+    """Clip 2: Voice switching — af_heart → bf_emma live in session."""
+    reset_voice("af_heart")
+    reset_speech_mode("auto")
+
+    def steps():
+        type_prompt("/agenttalk:voice bf_emma")
+        time.sleep(3)  # wait for voice switch confirmation
+        type_prompt("Say hello in your new voice.")
+
+    record_clip("02-voice-switch", audio_device, steps)
+    reset_voice("af_heart")  # clean up for next clip
+
+
+def clip_03_30_voices(audio_device: str) -> None:
+    """Clip 3: Show the interactive voice picker via /agenttalk:voice (no args)."""
+    reset_speech_mode("auto")
+
+    def steps():
+        type_prompt("/agenttalk:voice")
+
+    record_clip("03-30-voices", audio_device, steps)
+    # Press Escape to exit the picker so Claude is ready for next clip
+    time.sleep(1)
+    focus_terminal()
+    pyautogui.press("escape")
+
+
+def clip_04_semi_auto(audio_device: str) -> None:
+    """Clip 4: Semi-auto mode — silence after reply, then speak on demand."""
+    reset_voice("af_heart")
+    reset_speech_mode("auto")
+
+    def steps():
+        # Switch to semi-auto
+        type_prompt("/agenttalk:mode")
+        time.sleep(4)
+        # Ask something — Claude answers but AgentTalk stays silent
+        type_prompt("What is the capital of France?")
+        time.sleep(8)
+        # Now speak on demand
+        type_prompt("/agenttalk:speak")
+
+    record_clip("04-semi-auto", audio_device, steps)
+    reset_speech_mode("auto")  # restore for next clip
+
+
+def clip_05_tray_icon(audio_device: str) -> None:
+    """Clip 5: Tray icon animation — icon changes state while speaking."""
+    reset_voice("af_heart")
+    reset_speech_mode("auto")
+
+    def steps():
+        # Long response so tray animation is visible
+        type_prompt("Count from one to ten, saying each number on its own line.")
+
+    record_clip("05-tray-icon", audio_device, steps)
