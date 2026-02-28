@@ -1,3 +1,21 @@
+---
+name: agenttalk
+description: Real-time offline text-to-speech for OpenClaw. Speaks every assistant response aloud using Kokoro ONNX — no API keys, no cloud, no lag.
+version: 1.1.0
+metadata:
+  openclaw:
+    requires:
+      bins:
+        - curl
+        - python
+    emoji: "🔊"
+    homepage: https://github.com/omernesh/AgentTalk
+    os:
+      - windows
+      - macos
+      - linux
+---
+
 # AgentTalk — Real-Time Voice for OpenClaw
 
 AgentTalk gives your OpenClaw sessions a voice. Every assistant response is spoken
