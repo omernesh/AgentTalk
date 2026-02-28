@@ -453,18 +453,15 @@ def run_demo(audio_device=_NO_AUDIO) -> None:
 
     for clip_fn, label in [
         (lambda: clip_01_auto_speak(audio_device), "01-auto-speak"),
-        (lambda: clip_02_voice_switch(audio_device), "02-voice-switch"),
-        (lambda: clip_03_30_voices(audio_device), "03-30-voices"),
-        (lambda: clip_04_semi_auto(audio_device), "04-semi-auto"),
     ]:
         try:
             clip_fn()
         except Exception as e:
             print(f"  ✗ Clip {label} failed: {e}")
 
-    print("\n✓ All clips recorded!")
+    print("\n✓ Clip recorded!")
     print(f"Output directory: {DEMO_DIR.resolve()}")
-    for name in CLIP_DURATIONS:
+    for name in ["01-auto-speak"]:
         path = DEMO_DIR / f"{name}.mp4"
         try:
             size_mb = path.stat().st_size / 1_048_576
