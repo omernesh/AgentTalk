@@ -181,7 +181,32 @@ Or source the shell function from `integrations/openai-cli/README.md` for a `spe
 
 ### OpenClaw (ClawHub)
 
-Install the AgentTalk skill from `integrations/openclaw/SKILL.md` directly into your ClawHub workspace.
+The skill file at `integrations/openclaw/SKILL.md` (also available at the URL below) contains
+both the installation walkthrough and the agent operating instructions. Point OpenClaw at it
+and ask it to install AgentTalk — the agent follows the steps autonomously.
+
+**Option A — let OpenClaw install from the raw file:**
+
+In an OpenClaw session, paste this prompt:
+
+```
+Read https://raw.githubusercontent.com/omernesh/AgentTalk/main/integrations/openclaw/SKILL.md
+and follow the AI Agent Installation Instructions to install AgentTalk on this machine.
+```
+
+OpenClaw will run `pip install agenttalk`, call `agenttalk setup --no-autostart`, start the
+service, and verify it is healthy — all without leaving the session.
+
+**Option B — register as a persistent skill:**
+
+Add the skill to your ClawHub workspace so it loads automatically every session:
+
+```bash
+clawhub install https://raw.githubusercontent.com/omernesh/AgentTalk/main/integrations/openclaw/SKILL.md
+```
+
+Once installed, OpenClaw checks the service is running at session start and speaks each
+response automatically (auto mode) or on demand via `/agenttalk:speak` (semi-auto mode).
 
 ---
 
