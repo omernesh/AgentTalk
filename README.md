@@ -4,6 +4,8 @@
 
 Your AI agent's responses are spoken aloud as they complete. Hands-free. Runs locally. Works everywhere.
 
+<video src="https://github.com/omernesh/AgentTalk/raw/main/demo/01-auto-speak.mp4" controls width="100%"></video>
+
 ---
 
 ## Works with your entire AI stack
