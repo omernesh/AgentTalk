@@ -176,3 +176,42 @@ def test_strip_markdown_preserves_mixed_emotional():
         )
     assert "Wow" in result
     assert "amazing" in result
+
+
+# ---------------------------------------------------------------------------
+# Paragraph-break injection tests (quick task 7)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("input_text, expected", [
+    # 1. Paragraph break without terminal punct gets period injected
+    ("Idea A\n\nIdea B", "Idea A. Idea B"),
+    # 2. Paragraph break already has terminal punct — no double punctuation
+    ("Done.\n\nNext step.", "Done. Next step."),
+    # 3. Three paragraphs without terminal punct — two periods injected
+    ("First\n\nSecond\n\nThird", "First. Second. Third"),
+    # 4. Single newline stays as space (existing behavior unchanged)
+    ("Line one\nLine two", "Line one Line two"),
+], ids=[
+    "para_no_punct_injects_period",
+    "para_with_punct_no_double_period",
+    "three_paras_no_punct",
+    "single_newline_becomes_space",
+])
+def test_strip_markdown_paragraph_breaks(input_text, expected):
+    """Paragraph breaks produce injected sentence boundaries for pysbd."""
+    from agenttalk.preprocessor import strip_markdown
+    result = strip_markdown(input_text)
+    assert result == expected, (
+        f"strip_markdown({input_text!r}) = {result!r}, expected {expected!r}"
+    )
+
+
+def test_preprocess_paragraph_separated_yields_multiple_sentences():
+    """preprocess() integration: paragraph-separated text yields multiple sentences."""
+    from agenttalk.preprocessor import preprocess
+    result = preprocess(
+        "Here is what I found\n\nThe file contains three items\n\nEach item is valid"
+    )
+    assert len(result) == 3, (
+        f"Expected 3 sentences from 3 paragraphs, got {len(result)}: {result!r}"
+    )

@@ -31,6 +31,13 @@ def strip_markdown(text: str) -> str:
         ASCII double-dash (--), ASCII ellipsis (...).
         Kokoro's prosody engine uses these for pacing and intonation; stripping
         them would flatten speech expressiveness.
+
+    Step 9a (paragraph-break injection):
+        Double-newlines (paragraph breaks) are converted to ". " when the
+        preceding character is not already terminal punctuation (.!?:;,).
+        This ensures pysbd sees clean sentence boundaries before whitespace
+        is collapsed in step 9. Without this, "Idea A\\n\\nIdea B" becomes
+        "Idea A Idea B" — an unsplittable run-on — after step 9.
     """
     # 1. Fenced code blocks (MUST come before inline code)
     text = re.sub(r"```[\s\S]*?```", " ", text)
@@ -57,6 +64,12 @@ def strip_markdown(text: str) -> str:
 
     # 8. List bullets (-, *, +)
     text = re.sub(r"^[-*+]\s+", "", text, flags=re.MULTILINE)
+
+    # 9a. Paragraph breaks — inject sentence boundary before double-newlines
+    #     when the preceding character is not already terminal punctuation.
+    #     "Idea A\n\nIdea B" -> "Idea A. Idea B" so pysbd splits correctly.
+    #     Must run BEFORE step 9 (whitespace collapse) so \n\n is still visible.
+    text = re.sub(r"([^.!?:;,\n])\n{2,}", r"\1. ", text)
 
     # 9. Normalize whitespace
     text = re.sub(r"\s+", " ", text).strip()
