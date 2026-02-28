@@ -17,6 +17,13 @@ import time
 import os
 from pathlib import Path
 
+# Windows consoles default to legacy code pages that can't encode Unicode symbols.
+# Reconfigure before any print() calls.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import requests
 import pyautogui
 import pygetwindow as gw
@@ -35,10 +42,13 @@ CLIP_DURATIONS = {
 DEMO_DIR = Path(__file__).parent
 AGENTTALK_URL = "http://localhost:5050"
 
-# Ensure FFmpeg is on PATH — add known install location if not already present
-_FFMPEG_DIR = r"D:\AI\FFmpeg\bin"
-if _FFMPEG_DIR not in os.environ.get("PATH", ""):
-    os.environ["PATH"] = _FFMPEG_DIR + os.pathsep + os.environ.get("PATH", "")
+# Ensure FFmpeg and Windows Terminal are on PATH
+for _dir in (
+    r"D:\AI\FFmpeg\bin",
+    r"C:\Users\omern\AppData\Local\Microsoft\WindowsApps",
+):
+    if _dir not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = _dir + os.pathsep + os.environ.get("PATH", "")
 CLAUDE_STARTUP_SLEEP = 8   # seconds to wait for Claude to initialize
 BETWEEN_CLIP_SLEEP   = 3   # seconds between clips
 TYPE_INTERVAL        = 0.05 # seconds between keystrokes
