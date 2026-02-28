@@ -86,10 +86,10 @@ def _is_substantial(text: str) -> bool:
     Anti-noise filter: prevents speaking one-liners like "Reading file..."
     during rapid tool use. Only substantial assistant messages are spoken.
 
-    Requires: len > MIN_CHARS (80) AND last char is one of . ! ?
+    Requires: len >= MIN_CHARS (80) AND last char is one of . ! ?
     """
     stripped = text.strip()
-    return len(stripped) > MIN_CHARS and stripped[-1] in ('.', '!', '?')
+    return len(stripped) >= MIN_CHARS and stripped[-1] in ('.', '!', '?')
 
 
 def main() -> None:

@@ -508,10 +508,10 @@ async def speak(req: SpeakRequest):
             TTS_QUEUE.put_nowait(sentence)
             queued += 1
         except queue.Full:
-            dropped += 1
+            dropped = len(sentences) - queued  # current sentence + all unprocessed remaining
             logging.info(
                 "TTS queue full - dropping %d remaining sentence(s).",
-                len(sentences) - queued,
+                dropped,
             )
             break
 
