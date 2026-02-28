@@ -36,7 +36,6 @@ CLIP_DURATIONS = {
     "02-voice-switch": 25,
     "03-30-voices":    15,
     "04-semi-auto":    35,
-    "05-tray-icon":    25,
 }
 
 DEMO_DIR = Path(__file__).parent
@@ -51,6 +50,8 @@ for _dir in (
         os.environ["PATH"] = _dir + os.pathsep + os.environ.get("PATH", "")
 CLAUDE_STARTUP_SLEEP = 8   # seconds to wait for Claude to initialize
 BETWEEN_CLIP_SLEEP   = 3   # seconds between clips
+CLIP_PRE_BUFFER      = 6   # seconds of recording before typing prompt (was 1)
+CLIP_POST_BUFFER     = 5   # seconds of recording after duration wait
 TYPE_INTERVAL        = 0.05 # seconds between keystrokes
 
 
@@ -132,18 +133,31 @@ def detect_audio_device() -> str:
     sys.exit(1)
 
 
-def build_ffmpeg_cmd(audio_device: str | None, output_path: Path) -> list[str]:
+def build_ffmpeg_cmd(
+    audio_device: str | None,
+    output_path: Path,
+    window_rect: tuple[int, int, int, int] | None = None,
+) -> list[str]:
     """
     Build the FFmpeg command list for screen recording.
 
-    Video: gdigrab captures the full desktop at 30 fps.
+    Video: gdigrab captures a window region when window_rect=(x,y,w,h) is given,
+           or the full desktop otherwise.
     Audio: dshow captures the specified device; omitted when audio_device is None.
     Codec: libx264 ultrafast + aac 128k — fast enough not to drop frames.
     """
-    cmd = [
-        "ffmpeg", "-y",
-        "-f", "gdigrab", "-framerate", "30", "-i", "desktop",
-    ]
+    if window_rect:
+        x, y, w, h = window_rect
+        video_input = [
+            "-f", "gdigrab",
+            "-offset_x", str(x), "-offset_y", str(y),
+            "-video_size", f"{w}x{h}",
+            "-framerate", "30", "-i", "desktop",
+        ]
+    else:
+        video_input = ["-f", "gdigrab", "-framerate", "30", "-i", "desktop"]
+
+    cmd = ["ffmpeg", "-y"] + video_input
     if audio_device:
         cmd += ["-f", "dshow", "-i", f"audio={audio_device}",
                 "-acodec", "aac", "-b:a", "128k"]
@@ -155,8 +169,13 @@ def build_ffmpeg_cmd(audio_device: str | None, output_path: Path) -> list[str]:
 class Recorder:
     """Context manager that starts and stops FFmpeg recording."""
 
-    def __init__(self, audio_device: str, output_path: Path) -> None:
-        self._cmd = build_ffmpeg_cmd(audio_device, output_path)
+    def __init__(
+        self,
+        audio_device: str,
+        output_path: Path,
+        window_rect: tuple[int, int, int, int] | None = None,
+    ) -> None:
+        self._cmd = build_ffmpeg_cmd(audio_device, output_path, window_rect)
         self._proc: subprocess.Popen | None = None
 
     def start(self) -> None:
@@ -215,7 +234,7 @@ def launch_claude_terminal() -> None:
         "wt.exe",
         "--window", "new",
         "new-tab", "--title", TERMINAL_TITLE,
-        "powershell", "-NoExit", "-Command", "claude",
+        "powershell", "-NoExit", "-Command", "claude --dangerously-skip-permissions",
     ])
 
     print(f"  Waiting {CLAUDE_STARTUP_SLEEP}s for Claude to start...")
@@ -300,8 +319,8 @@ def record_clip(name: str, audio_device: str, steps_fn) -> None:
     """
     Generic clip recorder.
 
-    Starts FFmpeg, runs steps_fn() (which types prompts), waits for the
-    clip duration, then stops FFmpeg.
+    Starts FFmpeg on the Claude terminal window, runs steps_fn() (which types
+    prompts), waits for the clip duration + post-buffer, then stops FFmpeg.
     """
     if name not in CLIP_DURATIONS:
         raise ValueError(f"Unknown clip name {name!r}. Valid names: {list(CLIP_DURATIONS)}")
@@ -314,11 +333,24 @@ def record_clip(name: str, audio_device: str, steps_fn) -> None:
 
     time.sleep(BETWEEN_CLIP_SLEEP)
 
-    with Recorder(audio_device, output):
-        time.sleep(1)          # 1s buffer before typing
+    # Capture current bounds of the Claude terminal window
+    window_rect = None
+    if _claude_window:
+        try:
+            window_rect = (
+                _claude_window.left, _claude_window.top,
+                _claude_window.width, _claude_window.height,
+            )
+            print(f"  Window region: {window_rect}")
+        except Exception:
+            pass  # fall back to full desktop
+
+    with Recorder(audio_device, output, window_rect):
+        time.sleep(CLIP_PRE_BUFFER)   # buffer before typing
         steps_fn()
         print(f"  Waiting {duration}s for Claude + TTS to finish...")
         time.sleep(duration)
+        time.sleep(CLIP_POST_BUFFER)  # extra buffer after response
 
     print(f"✓ Saved: {output}")
 
@@ -424,7 +456,6 @@ def run_demo(audio_device=_NO_AUDIO) -> None:
         (lambda: clip_02_voice_switch(audio_device), "02-voice-switch"),
         (lambda: clip_03_30_voices(audio_device), "03-30-voices"),
         (lambda: clip_04_semi_auto(audio_device), "04-semi-auto"),
-        (lambda: clip_05_tray_icon(audio_device), "05-tray-icon"),
     ]:
         try:
             clip_fn()
