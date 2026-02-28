@@ -8,12 +8,25 @@ Registered in ~/.claude/settings.json with async: true by agenttalk setup.
 """
 import sys
 import json
+import os
 import urllib.request
 import urllib.error
+from pathlib import Path
 
 SERVICE_URL = 'http://localhost:5050/speak'
-CONFIG_URL  = 'http://localhost:5050/config'
 TIMEOUT_SECS = 3  # POST completes in <1s; 3s gives headroom without long block
+
+def _config_path() -> Path:
+    appdata = os.environ.get('APPDATA') or Path.home() / 'AppData' / 'Roaming'
+    return Path(appdata) / 'AgentTalk' / 'config.json'
+
+def _read_speech_mode() -> str:
+    """Return speech_mode from local config file, or 'auto' on any failure."""
+    try:
+        data = json.loads(_config_path().read_text(encoding='utf-8'))
+        return data.get('speech_mode', 'auto')
+    except Exception:
+        return 'auto'  # fail-open: treat missing/unreadable config as auto mode
 
 
 def main() -> None:
@@ -36,18 +49,9 @@ def main() -> None:
     if not text:
         sys.exit(0)
 
-    # Semi-auto guard: fetch current speech_mode before deciding to speak.
-    # Fail-open: if service unreachable or field absent, fall through to auto behavior.
-    cfg_req = urllib.request.Request(CONFIG_URL, method='GET')
-    try:
-        with urllib.request.urlopen(cfg_req, timeout=2) as resp:
-            cfg = json.loads(resp.read().decode('utf-8'))
-        if cfg.get('speech_mode') == 'semi-auto':
-            sys.exit(0)
-    except urllib.error.URLError:
-        pass  # service unreachable — fall through to speak (fail-open: auto mode behavior)
-    except Exception as exc:
-        print(f"[agenttalk stop_hook] Unexpected error reading config: {exc}", file=sys.stderr)
+    # Semi-auto guard: read speech_mode directly from config file (no HTTP round-trip).
+    if _read_speech_mode() == 'semi-auto':
+        sys.exit(0)
 
     # HOOK-01: POST text to /speak endpoint.
     # 202 = queued, 200 = skipped (alpha filter), 503 = warmup — all acceptable.
