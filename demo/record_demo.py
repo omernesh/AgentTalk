@@ -430,4 +430,37 @@ def run_demo() -> None:
 
 
 if __name__ == "__main__":
-    run_demo()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="AgentTalk demo recorder")
+    parser.add_argument(
+        "--audio-device", "-a",
+        metavar="DEVICE",
+        help="DirectShow audio device name for recording (overrides auto-detect)",
+    )
+    parser.add_argument(
+        "--list-devices",
+        action="store_true",
+        help="Print available DirectShow audio devices and exit",
+    )
+    args = parser.parse_args()
+
+    if args.list_devices:
+        detect_audio_device()  # prints the detected device; also lists all via side-effect
+        # Print full raw list for manual selection
+        result = subprocess.run(
+            ["ffmpeg", "-list_devices", "true", "-f", "dshow", "-i", "dummy"],
+            capture_output=True,
+        )
+        output = result.stderr.decode("utf-8", errors="ignore")
+        devices = [d for d in re.findall(r'"([^"]+)"', output) if not d.startswith("@device_")]
+        print("\nAll DirectShow audio devices:")
+        for i, d in enumerate(devices):
+            print(f"  [{i}] {d}")
+        print('\nUse: python record_demo.py --audio-device "Device Name"')
+    else:
+        if args.audio_device:
+            # monkey-patch detect_audio_device to return the user-specified device
+            _user_device = args.audio_device
+            detect_audio_device = lambda: (print(f"✓ Audio device (manual): {_user_device}") or _user_device)
+        run_demo()
