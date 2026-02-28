@@ -11,6 +11,8 @@ Requirements: AUDIO-02, AUDIO-03
 
 import re
 
+import pysbd
+
 
 def strip_markdown(text: str) -> str:
     """
@@ -89,9 +91,10 @@ def segment_sentences(text: str) -> list[str]:
         text: Clean text to segment.
 
     Returns:
-        List of sentence strings.
+        List of sentence strings. Returns [] for empty input.
     """
-    import pysbd
+    if not text.strip():
+        return []
     segmenter = pysbd.Segmenter(language="en", clean=False)
     return segmenter.segment(text)
 
