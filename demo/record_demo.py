@@ -189,39 +189,68 @@ class Recorder:
 
 TERMINAL_TITLE = "agenttalk-demo"
 
+# Populated by launch_claude_terminal(); used by focus_terminal().
+# Tracking by hwnd avoids relying on the title, which claude overwrites on start.
+_claude_window = None
+
 
 def launch_claude_terminal() -> None:
     """
-    Open a new Windows Terminal window titled 'agenttalk-demo' and start Claude.
+    Open a new Windows Terminal window and start Claude.
 
-    Uses wt.exe (Windows Terminal) with --title to make the window findable
-    by pygetwindow. Waits CLAUDE_STARTUP_SLEEP seconds for Claude to initialize.
+    Snapshots existing windows before launch, then identifies the new window
+    by hwnd diff — title-independent, because claude overwrites the tab title.
     """
+    global _claude_window
     print("Launching Windows Terminal + Claude...")
+
+    before_hwnds = {w._hWnd for w in gw.getAllWindows() if w._hWnd}
+
     subprocess.Popen([
         "wt.exe",
+        "--window", "new",
         "new-tab", "--title", TERMINAL_TITLE,
         "powershell", "-NoExit", "-Command", "claude",
     ])
+
     print(f"  Waiting {CLAUDE_STARTUP_SLEEP}s for Claude to start...")
     time.sleep(CLAUDE_STARTUP_SLEEP)
-    print("✓ Claude terminal ready")
+
+    new_windows = [
+        w for w in gw.getAllWindows()
+        if w._hWnd and w._hWnd not in before_hwnds and w.title
+    ]
+    if new_windows:
+        _claude_window = new_windows[0]
+        print(f"✓ Claude terminal ready (window: {_claude_window.title!r})")
+    else:
+        print("✓ Claude terminal ready (window not tracked — focus may fail)")
 
 
 def focus_terminal() -> None:
     """
-    Bring the 'agenttalk-demo' terminal window to the foreground.
-    Raises RuntimeError if the window is not found.
+    Bring the Claude terminal window to the foreground.
+    Uses the hwnd captured at launch; falls back to title search.
+    Raises RuntimeError if the window cannot be found.
     """
+    global _claude_window
+    if _claude_window:
+        try:
+            _claude_window.activate()
+            time.sleep(1.0)
+            return
+        except Exception:
+            _claude_window = None  # stale handle; fall through
+
     windows = gw.getWindowsWithTitle(TERMINAL_TITLE)
     if not windows:
         raise RuntimeError(
             f"Terminal window '{TERMINAL_TITLE}' not found.\n"
             "Make sure wt.exe opened successfully."
         )
-    win = windows[0]
-    win.activate()
-    time.sleep(1.0)  # Wait for focus to register (FFmpeg CPU load can slow this)
+    _claude_window = windows[0]
+    _claude_window.activate()
+    time.sleep(1.0)
 
 
 def type_prompt(text: str) -> None:
