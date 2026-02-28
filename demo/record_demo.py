@@ -34,6 +34,11 @@ CLIP_DURATIONS = {
 
 DEMO_DIR = Path(__file__).parent
 AGENTTALK_URL = "http://localhost:5050"
+
+# Ensure FFmpeg is on PATH — add known install location if not already present
+_FFMPEG_DIR = r"D:\AI\FFmpeg"
+if _FFMPEG_DIR not in os.environ.get("PATH", ""):
+    os.environ["PATH"] = _FFMPEG_DIR + os.pathsep + os.environ.get("PATH", "")
 CLAUDE_STARTUP_SLEEP = 8   # seconds to wait for Claude to initialize
 BETWEEN_CLIP_SLEEP   = 3   # seconds between clips
 TYPE_INTERVAL        = 0.05 # seconds between keystrokes
