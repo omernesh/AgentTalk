@@ -34,12 +34,10 @@ def strip_markdown(text: str) -> str:
         Kokoro's prosody engine uses these for pacing and intonation; stripping
         them would flatten speech expressiveness.
 
-    Step 9a (paragraph-break injection):
-        Double-newlines (paragraph breaks) are converted to ". " when the
-        preceding character is not already terminal punctuation (.!?:;,).
-        This ensures pysbd sees clean sentence boundaries before whitespace
-        is collapsed in step 9. Without this, "Idea A\\n\\nIdea B" becomes
-        "Idea A Idea B" — an unsplittable run-on — after step 9.
+    Paragraph boundaries:
+        This function does NOT handle paragraph breaks. Callers that need
+        paragraph-level sentence splitting (e.g. preprocess()) should split
+        on double-newlines before calling strip_markdown on each paragraph.
     """
     # 1. Fenced code blocks (MUST come before inline code)
     text = re.sub(r"```[\s\S]*?```", " ", text)
@@ -66,12 +64,6 @@ def strip_markdown(text: str) -> str:
 
     # 8. List bullets (-, *, +)
     text = re.sub(r"^[-*+]\s+", "", text, flags=re.MULTILINE)
-
-    # 9a. Paragraph breaks — inject sentence boundary before double-newlines
-    #     when the preceding character is not already terminal punctuation.
-    #     "Idea A\n\nIdea B" -> "Idea A. Idea B" so pysbd splits correctly.
-    #     Must run BEFORE step 9 (whitespace collapse) so \n\n is still visible.
-    text = re.sub(r"([^.!?:;,\n])\n{2,}", r"\1. ", text)
 
     # 9. Normalize whitespace
     text = re.sub(r"\s+", " ", text).strip()
@@ -123,10 +115,16 @@ def is_speakable(sentence: str) -> bool:
 
 def preprocess(text: str) -> list[str]:
     """
-    Full TTS preprocessing pipeline: strip markdown → segment → filter.
+    Full TTS preprocessing pipeline: split paragraphs → strip markdown → segment → filter.
 
-    Applies strip_markdown to remove formatting noise, then segments into
-    individual sentences, then filters out non-speakable content.
+    Splits on double-newlines first so each paragraph is processed independently
+    by pysbd. This guarantees a TTS sentence boundary at every paragraph break
+    regardless of pysbd's heuristics (which can silently ignore injected periods
+    before labels like "Summary:" or "Note:").
+
+    Each returned sentence is stripped of leading/trailing whitespace so pysbd
+    artifacts (e.g. trailing spaces retained from the source text) don't reach
+    the TTS engine.
 
     Args:
         text: Raw assistant output text (may contain markdown).
@@ -135,8 +133,12 @@ def preprocess(text: str) -> list[str]:
         List of clean, speakable sentence strings. May be empty if all
         content is noise (JSON, code, symbol strings, etc.).
     """
-    cleaned = strip_markdown(text)
-    if not cleaned:
-        return []
-    sentences = segment_sentences(cleaned)
-    return [s for s in sentences if is_speakable(s)]
+    paragraphs = re.split(r"\n{2,}", text)
+    result = []
+    for para in paragraphs:
+        cleaned = strip_markdown(para)
+        if not cleaned:
+            continue
+        sentences = segment_sentences(cleaned)
+        result.extend(s.strip() for s in sentences if is_speakable(s))
+    return result

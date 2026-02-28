@@ -179,26 +179,28 @@ def test_strip_markdown_preserves_mixed_emotional():
 
 
 # ---------------------------------------------------------------------------
-# Paragraph-break injection tests (quick task 7)
+# Paragraph-break splitting tests (quick task 7 revised in quick task 8)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("input_text, expected", [
-    # 1. Paragraph break without terminal punct gets period injected
-    ("Idea A\n\nIdea B", "Idea A. Idea B"),
-    # 2. Paragraph break already has terminal punct — no double punctuation
+    # strip_markdown no longer injects periods — double-newlines collapse to
+    # space via whitespace normalisation. Paragraph splitting happens in preprocess().
+    # 1. Double-newline collapses to a single space (no period injected)
+    ("Idea A\n\nIdea B", "Idea A Idea B"),
+    # 2. Existing terminal punct — result is the same either way
     ("Done.\n\nNext step.", "Done. Next step."),
-    # 3. Three paragraphs without terminal punct — two periods injected
-    ("First\n\nSecond\n\nThird", "First. Second. Third"),
-    # 4. Single newline stays as space (existing behavior unchanged)
+    # 3. Three paragraphs — collapses to space-separated text
+    ("First\n\nSecond\n\nThird", "First Second Third"),
+    # 4. Single newline stays as space (unchanged)
     ("Line one\nLine two", "Line one Line two"),
 ], ids=[
-    "para_no_punct_injects_period",
-    "para_with_punct_no_double_period",
-    "three_paras_no_punct",
+    "para_no_punct_collapses_to_space",
+    "para_with_punct_unchanged",
+    "three_paras_collapse_to_space",
     "single_newline_becomes_space",
 ])
 def test_strip_markdown_paragraph_breaks(input_text, expected):
-    """Paragraph breaks produce injected sentence boundaries for pysbd."""
+    """strip_markdown collapses newlines to spaces; paragraph splitting is in preprocess()."""
     from agenttalk.preprocessor import strip_markdown
     result = strip_markdown(input_text)
     assert result == expected, (
@@ -207,7 +209,8 @@ def test_strip_markdown_paragraph_breaks(input_text, expected):
 
 
 def test_preprocess_paragraph_separated_yields_multiple_sentences():
-    """preprocess() integration: paragraph-separated text yields multiple sentences."""
+    """preprocess() splits on paragraph breaks before pysbd so each paragraph
+    is guaranteed to start a new TTS sentence regardless of pysbd heuristics."""
     from agenttalk.preprocessor import preprocess
     result = preprocess(
         "Here is what I found\n\nThe file contains three items\n\nEach item is valid"
@@ -215,3 +218,29 @@ def test_preprocess_paragraph_separated_yields_multiple_sentences():
     assert len(result) == 3, (
         f"Expected 3 sentences from 3 paragraphs, got {len(result)}: {result!r}"
     )
+
+
+def test_preprocess_paragraph_label_followed_by_path_splits():
+    """Paragraph break before a label like 'Summary: ...' always produces a split.
+
+    This is the regression case: pysbd would ignore an injected period before
+    'Summary:' because it treats 'Summary: path/to/file' as a label continuation,
+    not a sentence start. Splitting by paragraph before pysbd guarantees the break.
+    """
+    from agenttalk.preprocessor import preprocess
+    result = preprocess(
+        "Task complete with double newlines\n\nSummary: some path here"
+    )
+    assert len(result) == 2, (
+        f"Expected 2 sentences (one per paragraph), got {len(result)}: {result!r}"
+    )
+    assert result[0] == "Task complete with double newlines"
+    assert "Summary" in result[1]
+
+
+def test_preprocess_sentences_have_no_trailing_whitespace():
+    """Each sentence returned by preprocess() is stripped of surrounding whitespace."""
+    from agenttalk.preprocessor import preprocess
+    result = preprocess("Hello world.\n\nGoodbye world.")
+    for s in result:
+        assert s == s.strip(), f"Sentence has surrounding whitespace: {s!r}"
