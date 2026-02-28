@@ -5,101 +5,107 @@ aloud through your speakers using a local, offline TTS engine (no API keys requi
 
 ---
 
-## Setup (run once)
+## AI Agent: Installation Instructions
 
-When this skill is first activated, ensure AgentTalk is installed and ready:
+> **Read this section if AgentTalk is not yet installed.** Follow these steps in
+> order. Each step is idempotent — safe to re-run if interrupted.
+
+### Step 1 — Check if already installed
+
+```bash
+pip show agenttalk
+```
+
+If this prints package info, skip to **Step 3**. If it prints an error, continue.
+
+### Step 2 — Install
 
 ```bash
 pip install agenttalk
+```
+
+### Step 3 — Run first-time setup
+
+Downloads the Kokoro ONNX model (~310 MB) and creates the config directory.
+Use `--no-autostart` for OpenClaw (no system service registration needed).
+
+```bash
 agenttalk setup --no-autostart
 ```
 
-This downloads the Kokoro ONNX model (~310 MB) and registers the service.
+Expected output ends with: `Setup complete.`
 
-To start the AgentTalk service:
+If the model is already downloaded, this is fast and safe to re-run.
 
+### Step 4 — Start the service
+
+**Windows:**
 ```bash
-python -m agenttalk.service
+start /B pythonw -m agenttalk.service
 ```
 
-The service runs on `localhost:5050`. Verify it is running:
+**macOS / Linux:**
+```bash
+python -m agenttalk.service &
+```
+
+### Step 5 — Verify
 
 ```bash
 curl http://localhost:5050/health
-# Expected: {"status": "ok"}
 ```
 
----
+Expected: `{"status":"ok"}`
 
-## How It Works
-
-AgentTalk is a local FastAPI service that accepts text via HTTP POST and speaks it
-using the Kokoro ONNX text-to-speech engine. No data leaves your machine.
-
-**Endpoint:** `POST http://localhost:5050/speak`
-**Body:** `{"text": "text to speak"}`
+If you see a connection error, wait 3 seconds and retry (model load takes ~2s).
 
 ---
 
-## Agent Instructions
+## AI Agent: Session Start (every session)
 
-As an OpenClaw agent with this skill active, follow these rules:
-
-### Session Start
-
-At the beginning of each session, check if AgentTalk is running:
+At the beginning of each session, verify the service is running:
 
 ```bash
 curl -s http://localhost:5050/health 2>/dev/null || echo "offline"
 ```
 
-If the response is not `{"status": "ok"}`, start the service in the background:
+If the response is not `{"status":"ok"}`, start it (see Step 4 above).
 
-- **Windows:** `start pythonw -m agenttalk.service`
-- **macOS/Linux:** `python -m agenttalk.service &`
+---
 
-### After Each Response
+## AI Agent: After Each Response
 
 After completing each assistant response, POST the response text to AgentTalk:
 
 ```bash
 curl -s -X POST http://localhost:5050/speak \
   -H "Content-Type: application/json" \
-  -d "{\"text\": \"<YOUR_RESPONSE_TEXT>\"}"
+  -d '{"text": "<YOUR_RESPONSE_TEXT>"}'
 ```
 
-Replace `<YOUR_RESPONSE_TEXT>` with the actual assistant response text (trimmed
-to the key spoken content — omit code blocks, file contents, and long outputs).
-
-### Muting
-
-If the user asks to mute AgentTalk:
-
-```bash
-curl -X POST http://localhost:5050/config \
-  -H "Content-Type: application/json" \
-  -d '{"muted": true}'
-```
-
-To unmute:
-
-```bash
-curl -X POST http://localhost:5050/config \
-  -H "Content-Type: application/json" \
-  -d '{"muted": false}'
-```
+**Guidelines for `<YOUR_RESPONSE_TEXT>`:**
+- Use the full prose response — AgentTalk's preprocessor strips markdown, code blocks, and URLs automatically
+- Do NOT manually truncate or summarize — the service handles filtering
+- Omit raw file contents or tool outputs that were not part of your assistant reply
 
 ---
 
-## Slash Commands
+## How It Works
 
-Users can control AgentTalk via these slash commands in their session:
+AgentTalk is a local FastAPI service. Text is preprocessed (markdown stripped,
+paragraphs split into sentences) and queued to the Kokoro ONNX TTS engine.
+No data leaves the machine.
 
-### `/agenttalk:voice <voice_id>`
+**Endpoint:** `POST http://localhost:5050/speak`
+**Body:** `{"text": "text to speak"}`
 
-Switch the TTS voice. Available Kokoro voices:
-`af_heart`, `af_bella`, `af_nicole`, `af_sarah`, `af_sky`,
-`am_adam`, `am_michael`, `bf_emma`, `bf_isabella`, `bm_george`, `bm_lewis`
+---
+
+## User Commands
+
+### Voice
+
+Switch the TTS voice:
 
 ```bash
 curl -X POST http://localhost:5050/config \
@@ -107,42 +113,75 @@ curl -X POST http://localhost:5050/config \
   -d '{"voice": "<voice_id>"}'
 ```
 
-### `/agenttalk:model <kokoro|piper>`
+Available Kokoro voices:
+`af_heart`, `af_bella`, `af_nicole`, `af_sarah`, `af_sky`,
+`am_adam`, `am_michael`, `bf_emma`, `bf_isabella`, `bm_george`, `bm_lewis`
 
-Switch the TTS engine:
+### Speed and Volume
 
 ```bash
-curl -X POST http://localhost:5050/config \
-  -H "Content-Type: application/json" \
-  -d '{"model": "kokoro"}'
+# Speed (default 1.0, range 0.5–2.0)
+curl -X POST http://localhost:5050/config -H "Content-Type: application/json" \
+  -d '{"speed": 1.3}'
+
+# Volume (default 1.0, range 0.1–2.0)
+curl -X POST http://localhost:5050/config -H "Content-Type: application/json" \
+  -d '{"volume": 0.8}'
 ```
 
-### `/agenttalk:stop`
+### Mute / Unmute
 
-Stop the service:
+```bash
+# Mute
+curl -X POST http://localhost:5050/config -H "Content-Type: application/json" \
+  -d '{"muted": true}'
+
+# Unmute
+curl -X POST http://localhost:5050/config -H "Content-Type: application/json" \
+  -d '{"muted": false}'
+```
+
+### Speech Mode
+
+```bash
+# auto — speak every response (default)
+curl -X POST http://localhost:5050/config -H "Content-Type: application/json" \
+  -d '{"speech_mode": "auto"}'
+
+# semi-auto — only speak when explicitly requested
+curl -X POST http://localhost:5050/config -H "Content-Type: application/json" \
+  -d '{"speech_mode": "semi-auto"}'
+```
+
+### Speak on Demand (semi-auto mode)
+
+```bash
+curl -X POST http://localhost:5050/speak \
+  -H "Content-Type: application/json" \
+  -d '{"text": "<text to speak>"}'
+```
+
+### Stop the Service
 
 ```bash
 curl -X POST http://localhost:5050/stop
 ```
 
-### `/agenttalk:start`
+### Check Current Config
 
-Start the service (if not running):
-
-- **Windows:** `start pythonw -m agenttalk.service`
-- **macOS/Linux:** `python -m agenttalk.service &`
+```bash
+curl http://localhost:5050/config
+```
 
 ---
 
 ## Platforms
 
-AgentTalk works on Windows, macOS, and Linux.
-
-| Platform | Config dir | Auto-start |
-|----------|-----------|------------|
-| Windows  | `%APPDATA%\AgentTalk\` | Task Scheduler |
-| macOS    | `~/Library/Application Support/AgentTalk/` | launchd |
-| Linux    | `~/.config/AgentTalk/` | systemd --user |
+| Platform | Config dir | Model dir |
+|----------|-----------|-----------|
+| Windows  | `%APPDATA%\AgentTalk\` | `%APPDATA%\AgentTalk\models\` |
+| macOS    | `~/Library/Application Support/AgentTalk/` | same |
+| Linux    | `~/.config/AgentTalk/` | same |
 
 ---
 
@@ -150,17 +189,26 @@ AgentTalk works on Windows, macOS, and Linux.
 
 **Service not starting:**
 ```bash
-python -m agenttalk.service  # Run in foreground to see errors
+python -m agenttalk.service  # Run in foreground to see error output
 ```
 
-**Model files missing:**
+**Model files missing (setup needed):**
 ```bash
-agenttalk setup --no-autostart  # Re-run setup to download model files
+agenttalk setup --no-autostart
 ```
 
 **Port 5050 in use:**
-The service will fail to start if another process is using port 5050.
-Check with: `netstat -ano | findstr 5050` (Windows) or `lsof -i :5050` (macOS/Linux)
+```bash
+# Windows
+netstat -ano | findstr 5050
+
+# macOS / Linux
+lsof -i :5050
+```
+
+**Health check returns 200 but no audio:**
+- Confirm your system audio is not muted
+- Check `curl http://localhost:5050/config` — `"muted"` should be `false`
 
 ---
 
@@ -168,4 +216,4 @@ Check with: `netstat -ano | findstr 5050` (Windows) or `lsof -i :5050` (macOS/Li
 
 - GitHub: https://github.com/omernesh/AgentTalk
 - PyPI: https://pypi.org/project/agenttalk/
-- API docs (when running): http://localhost:5050/docs
+- API docs (when service is running): http://localhost:5050/docs
