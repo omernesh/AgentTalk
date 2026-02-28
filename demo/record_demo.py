@@ -254,6 +254,8 @@ def record_clip(name: str, audio_device: str, steps_fn) -> None:
     Starts FFmpeg, runs steps_fn() (which types prompts), waits for the
     clip duration, then stops FFmpeg.
     """
+    if name not in CLIP_DURATIONS:
+        raise ValueError(f"Unknown clip name {name!r}. Valid names: {list(CLIP_DURATIONS)}")
     duration = CLIP_DURATIONS[name]
     output = DEMO_DIR / f"{name}.mp4"
 
@@ -293,8 +295,10 @@ def clip_02_voice_switch(audio_device: str) -> None:
         time.sleep(3)  # wait for voice switch confirmation
         type_prompt("Say hello in your new voice.")
 
-    record_clip("02-voice-switch", audio_device, steps)
-    reset_voice("af_heart")  # clean up for next clip
+    try:
+        record_clip("02-voice-switch", audio_device, steps)
+    finally:
+        reset_voice("af_heart")  # clean up for next clip
 
 
 def clip_03_30_voices(audio_device: str) -> None:
@@ -307,8 +311,11 @@ def clip_03_30_voices(audio_device: str) -> None:
     record_clip("03-30-voices", audio_device, steps)
     # Press Escape to exit the picker so Claude is ready for next clip
     time.sleep(1)
-    focus_terminal()
-    pyautogui.press("escape")
+    try:
+        focus_terminal()
+        pyautogui.press("escape")
+    except RuntimeError as e:
+        print(f"  ⚠ Could not dismiss voice picker: {e}")
 
 
 def clip_04_semi_auto(audio_device: str) -> None:
@@ -326,8 +333,10 @@ def clip_04_semi_auto(audio_device: str) -> None:
         # Now speak on demand
         type_prompt("/agenttalk:speak")
 
-    record_clip("04-semi-auto", audio_device, steps)
-    reset_speech_mode("auto")  # restore for next clip
+    try:
+        record_clip("04-semi-auto", audio_device, steps)
+    finally:
+        reset_speech_mode("auto")  # restore for next clip
 
 
 def clip_05_tray_icon(audio_device: str) -> None:
