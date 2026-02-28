@@ -80,6 +80,7 @@ Recent decisions affecting current work:
 - [quick-5]: strip_markdown() never stripped emotional punctuation — audit confirmed no fix needed, only regression tests and docstring added
 - [quick-6]: TTS_QUEUE items changed from list[str] batches to individual str sentences — duck/unduck per sentence accepted as correctness trade-off for immediate first-sentence playback
 - [quick-6]: _is_substantial threshold set at 80 chars + terminal punctuation to prevent speaking one-liners like "Reading file..." during rapid tool use
+- [quick-7]: Inject '. ' at paragraph breaks via regex step 9a before whitespace collapse so pysbd receives clean sentence boundaries from double-newline-separated Claude output
 
 ### Pending Todos
 
@@ -100,9 +101,10 @@ Recent decisions affecting current work:
 | 4 | Google Antigravity IDE integration: skill, workflow, register_antigravity_hooks(), --antigravity flag | 2026-02-27 | 62a9689 | Verified | [4-add-google-antigravity-ide-integration](.planning/quick/4-add-google-antigravity-ide-integration/) |
 | 5 | Audit preprocessor emotional-punctuation: 11 regression tests + preservation docstring + bold/italic regex fix | 2026-02-28 | 258d815 | Verified | [5-audit-text-filter-py-to-check-if-emotion](.planning/quick/5-audit-text-filter-py-to-check-if-emotion/) |
 | 6 | Sentence-level TTS streaming + PostToolUse early-speaking hook | 2026-02-28 | 33c20ed | Verified | [6-implement-agenttalk-latency-optimization](.planning/quick/6-implement-agenttalk-latency-optimization/) |
+| 7 | Paragraph-break sentence injection: step 9a regex in strip_markdown for pysbd sentence splitting | 2026-02-28 | a7dc694 | Verified | [7-fix-agenttalk-sentence-detection-so-it-p](.planning/quick/7-fix-agenttalk-sentence-detection-so-it-p/) |
 
 ## Session Continuity
 
 Last session: 2026-02-28
-Last activity: 2026-02-28 - Completed quick task 6 (verified): AgentTalk latency optimization (sentence-level TTS streaming + PostToolUse hook)
+Last activity: 2026-02-28 - Completed quick task 7 (verified): Paragraph-break sentence injection in strip_markdown
 Resume file: None
