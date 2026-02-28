@@ -4,7 +4,7 @@
 
 Your AI agent's responses are spoken aloud as they complete. Hands-free. Runs locally. Works everywhere.
 
-<video src="demo/01-auto-speak.mp4" controls width="100%"></video>
+[![AgentTalk demo](https://img.youtube.com/vi/fkhUDSiaflc/maxresdefault.jpg)](https://youtu.be/fkhUDSiaflc)
 
 ---
 
