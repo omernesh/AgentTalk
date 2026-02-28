@@ -61,11 +61,11 @@ def test_detect_stereo_mix():
     assert device == "Stereo Mix (Realtek(R) Audio)"
 
 
-def test_detect_fallback_to_mic():
+def test_detect_no_loopback_exits():
     with patch("record_demo.subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=1, stderr=FFMPEG_DSHOW_MIC_ONLY)
-        device = detect_audio_device()
-    assert device == "Microphone (USB Audio Device)"
+        with pytest.raises(SystemExit):
+            detect_audio_device()
 
 
 from record_demo import build_ffmpeg_cmd

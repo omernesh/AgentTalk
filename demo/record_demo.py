@@ -121,30 +121,35 @@ def detect_audio_device() -> str:
                 print(f"✓ Audio device: {d}")
                 return d
 
-    # Fallback: first device (usually microphone)
-    print(f"⚠ No loopback device found, using: {devices[0]}")
-    return devices[0]
+    # No loopback device found — abort with helpful guidance
+    print("⚠ No system audio loopback device found.")
+    print("  Available devices:", ", ".join(devices))
+    print("  Options:")
+    print("    1. Install VB-Cable (free): https://vb-audio.com/Cable/")
+    print("       Then use: --audio-device \"CABLE Output (VB-Audio Virtual Cable)\"")
+    print("    2. Enable Stereo Mix: Sound Settings → Recording → Show Disabled Devices")
+    print("    3. Record without audio: --no-audio")
+    sys.exit(1)
 
 
-def build_ffmpeg_cmd(audio_device: str, output_path: Path) -> list[str]:
+def build_ffmpeg_cmd(audio_device: str | None, output_path: Path) -> list[str]:
     """
-    Build the FFmpeg command list for screen + audio recording.
+    Build the FFmpeg command list for screen recording.
 
     Video: gdigrab captures the full desktop at 30 fps.
-    Audio: dshow captures the specified device (loopback or mic).
+    Audio: dshow captures the specified device; omitted when audio_device is None.
     Codec: libx264 ultrafast + aac 128k — fast enough not to drop frames.
     """
-    return [
+    cmd = [
         "ffmpeg", "-y",
-        # Video: full desktop capture
         "-f", "gdigrab", "-framerate", "30", "-i", "desktop",
-        # Audio: DirectShow device
-        "-f", "dshow", "-i", f"audio={audio_device}",
-        # Encoding
-        "-vcodec", "libx264", "-preset", "ultrafast", "-crf", "23",
-        "-acodec", "aac", "-b:a", "128k",
-        str(output_path),
     ]
+    if audio_device:
+        cmd += ["-f", "dshow", "-i", f"audio={audio_device}",
+                "-acodec", "aac", "-b:a", "128k"]
+    cmd += ["-vcodec", "libx264", "-preset", "ultrafast", "-crf", "23",
+            str(output_path)]
+    return cmd
 
 
 class Recorder:
@@ -395,14 +400,22 @@ def clip_05_tray_icon(audio_device: str) -> None:
     record_clip("05-tray-icon", audio_device, steps)
 
 
-def run_demo() -> None:
+_NO_AUDIO = object()  # sentinel: skip audio entirely
+
+
+def run_demo(audio_device=_NO_AUDIO) -> None:
     """Run all 5 demo clips in sequence."""
     print("AgentTalk Demo Recorder")
     print("=======================")
     DEMO_DIR.mkdir(parents=True, exist_ok=True)
 
     check_prerequisites()
-    audio_device = detect_audio_device()
+    if audio_device is _NO_AUDIO:
+        audio_device = detect_audio_device()
+    elif audio_device is None:
+        print("  (no audio track)")
+    else:
+        print(f"✓ Audio device: {audio_device}")
 
     launch_claude_terminal()
 
@@ -439,6 +452,11 @@ if __name__ == "__main__":
         help="DirectShow audio device name for recording (overrides auto-detect)",
     )
     parser.add_argument(
+        "--no-audio",
+        action="store_true",
+        help="Record video only (no audio track)",
+    )
+    parser.add_argument(
         "--list-devices",
         action="store_true",
         help="Print available DirectShow audio devices and exit",
@@ -446,21 +464,21 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.list_devices:
-        detect_audio_device()  # prints the detected device; also lists all via side-effect
-        # Print full raw list for manual selection
         result = subprocess.run(
             ["ffmpeg", "-list_devices", "true", "-f", "dshow", "-i", "dummy"],
             capture_output=True,
         )
         output = result.stderr.decode("utf-8", errors="ignore")
         devices = [d for d in re.findall(r'"([^"]+)"', output) if not d.startswith("@device_")]
-        print("\nAll DirectShow audio devices:")
+        print("DirectShow audio devices:")
         for i, d in enumerate(devices):
             print(f"  [{i}] {d}")
-        print('\nUse: python record_demo.py --audio-device "Device Name"')
+        print()
+        print('Use: python record_demo.py --audio-device "Device Name"')
+        print('     python record_demo.py --no-audio')
+    elif args.no_audio:
+        print("⚠ Recording without audio (--no-audio)")
+        run_demo(audio_device=None)  # None = explicitly no audio
     else:
-        if args.audio_device:
-            # monkey-patch detect_audio_device to return the user-specified device
-            _user_device = args.audio_device
-            detect_audio_device = lambda: (print(f"✓ Audio device (manual): {_user_device}") or _user_device)
-        run_demo()
+        # args.audio_device is a string or None (not specified = auto-detect via sentinel)
+        run_demo(audio_device=args.audio_device if args.audio_device else _NO_AUDIO)
