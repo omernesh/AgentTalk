@@ -475,7 +475,12 @@ def list_piper_voices():
 async def speak(req: SpeakRequest):
     """
     Accepts text (plain or Markdown), preprocesses it into speakable sentences,
-    and pushes them onto the TTS queue for ordered playback.
+    and enqueues each sentence individually for ordered playback.
+
+    Each sentence is a separate queue item (str) so the first sentence begins
+    playing as soon as it is synthesized, without waiting for later sentences.
+    If the queue fills mid-loop the remaining sentences are dropped gracefully
+    and the response includes dropped count.
 
     Preprocessing strips: fenced code blocks, inline code, Markdown links, bare URLs,
     headings, bold/italic, blockquotes, list markers, and excess whitespace.
@@ -496,20 +501,30 @@ async def speak(req: SpeakRequest):
             status_code=200,
         )
 
-    try:
-        TTS_QUEUE.put_nowait(sentences)
-        return JSONResponse(
-            {"status": "queued", "sentences": len(sentences)},
-            status_code=202,
-        )
-    except queue.Full:
-        logging.info(
-            "TTS queue full (%d items) — dropping /speak request.", TTS_QUEUE.qsize()
-        )
+    queued = 0
+    dropped = 0
+    for sentence in sentences:
+        try:
+            TTS_QUEUE.put_nowait(sentence)
+            queued += 1
+        except queue.Full:
+            dropped += 1
+            logging.info(
+                "TTS queue full - dropping %d remaining sentence(s).",
+                len(sentences) - queued,
+            )
+            break
+
+    if queued == 0:
         return JSONResponse(
             {"status": "dropped", "reason": "queue full"},
             status_code=429,
         )
+
+    return JSONResponse(
+        {"status": "queued", "sentences": queued, "dropped": dropped},
+        status_code=202,
+    )
 
 
 @app.post(

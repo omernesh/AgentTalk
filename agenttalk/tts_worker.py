@@ -1,9 +1,13 @@
 """
 TTS worker module — bounded queue and daemon synthesis thread.
 
-Provides a threading.Queue(maxsize=3) for backpressure, a STATE dict
+Provides a threading.Queue(maxsize=10) for backpressure, a STATE dict
 for runtime volume/speed/voice/mute control, and a daemon thread that
-consumes sentence lists, synthesizes via Kokoro, and plays audio.
+consumes individual str sentences, synthesizes via Kokoro, and plays audio.
+
+Each queue item is a single str sentence (not list[str]). The /speak endpoint
+enqueues sentences one by one so audio on sentence 1 begins playing while
+sentence 2 is still waiting in the queue (sentence-level TTS streaming).
 
 Plan: 02-02 — TTS Worker + /speak Endpoint
 Requirements: SVC-03, AUDIO-01, AUDIO-04, AUDIO-06, TTS-05
@@ -67,9 +71,11 @@ from agenttalk.tray import create_image_idle, create_image_speaking
 # Module-level state
 # ---------------------------------------------------------------------------
 
-# Bounded queue — maxsize=3 implements backpressure (AUDIO-04).
+# Bounded queue — maxsize=10 implements backpressure (AUDIO-04).
+# Each item is a single str sentence (not list[str]).
+# /speak enqueues each sentence individually so sentence 1 plays immediately.
 # put_nowait() raises queue.Full when full; handler returns 429.
-TTS_QUEUE: queue.Queue = queue.Queue(maxsize=3)
+TTS_QUEUE: queue.Queue = queue.Queue(maxsize=10)
 
 # Runtime state dict — read at synthesis time so changes take effect
 # on the NEXT sentence without service restart (AUDIO-06, TTS-05).
@@ -221,82 +227,66 @@ def _tts_worker(kokoro_engine) -> None:
     """
     Blocking TTS synthesis loop — runs in daemon thread.
 
+    Each queue item is a single str sentence. Duck/unduck and cue playback
+    happen per sentence so the first sentence plays immediately after it is
+    synthesized, without waiting for the full batch to queue up.
+
     Phase 4 additions: audio ducking (AUDIO-07), pre/post cues (CUE-01–04),
     speaking state flag (TRAY-03), icon image swapping (TRAY-03).
 
-    Sequence per utterance batch:
-      1. Check muted — skip entire batch if True
-      2. Set speaking=True, swap icon to speaking image
-      3. Play pre-cue (synchronous WAV, if configured)
-      4. Duck other audio sessions
-      5. Synthesize and play each sentence
-      6. Unduck audio sessions
-      7. Play post-cue (synchronous WAV, if configured)
-      8. finally: set speaking=False, swap icon to idle, call task_done()
+    Sequence per sentence:
+      1. Check muted — skip sentence if True
+      2. Skip if sentence is blank
+      3. Set speaking=True, swap icon to speaking image
+      4. Play pre-cue (synchronous WAV, if configured)
+      5. Duck other audio sessions
+      6. Synthesize and play the sentence
+      7. Unduck audio sessions
+      8. Play post-cue (synchronous WAV, if configured)
+      9. finally: set speaking=False, swap icon to idle, call task_done()
 
     The try/finally guarantees task_done() is always called, even on error.
-    The 'continue' in the muted branch executes the finally block — correct Python behavior.
+    The 'continue' in the muted/blank branches executes the finally block — correct Python behavior.
     """
     logging.info("TTS worker thread running.")
     while True:
-        sentences: list[str] = TTS_QUEUE.get()
+        sentence: str = TTS_QUEUE.get()
         try:
             if STATE["muted"]:
-                logging.debug(
-                    "TTS: muted — skipping batch of %d sentences.", len(sentences)
-                )
+                logging.debug("TTS: muted - skipping sentence.")
+                continue
+            if not sentence.strip():
                 continue
 
-            # TRAY-03: Notify tray icon that TTS is speaking
             STATE["speaking"] = True
             _swap_icon(create_image_speaking, "speaking")
-
-            # CUE-01: Play pre-speech cue (synchronous — must finish before synthesis)
             play_cue(STATE.get("pre_cue_path"))
-
-            # AUDIO-07: Duck other audio sessions
             _ducker.duck()
 
             engine = _get_active_engine(kokoro_engine)
-            for sentence in sentences:
-                if not sentence.strip():
-                    continue
+            logging.debug("TTS: synthesizing %r", sentence[:60])
+            samples, rate = engine.create(
+                sentence,
+                voice=STATE["voice"],
+                speed=STATE["speed"],
+                lang="en-us",
+            )
+            scaled = samples * STATE["volume"]
+            if STATE["volume"] > 1.0:
+                scaled = np.clip(scaled, -1.0, 1.0)
+            sd.play(scaled, samplerate=rate)
+            sd.wait()
 
-                logging.debug("TTS: synthesizing %r", sentence[:60])
-                samples, rate = engine.create(
-                    sentence,
-                    voice=STATE["voice"],
-                    speed=STATE["speed"],
-                    lang="en-us",
-                )
-
-                # Apply volume scaling; clip to [-1.0, 1.0] if >1.0 to
-                # prevent clipping distortion at the speaker/DAC level.
-                scaled = samples * STATE["volume"]
-                if STATE["volume"] > 1.0:
-                    scaled = np.clip(scaled, -1.0, 1.0)
-
-                sd.play(scaled, samplerate=rate)
-                sd.wait()  # Block until this sentence finishes playing
-
-            # AUDIO-07: Restore ducked sessions after all sentences finish
             _ducker.unduck()
-
-            # CUE-02: Play post-speech cue
             play_cue(STATE.get("post_cue_path"))
 
         except Exception:
-            logging.exception("TTS worker error — skipping batch.")
-            # Ensure unduck on error path — prevents volumes stuck at 50% after crash.
-            # unduck() is a no-op when nothing was ducked (guards internally).
+            logging.exception("TTS worker error - skipping sentence.")
             try:
                 _ducker.unduck()
             except Exception:
-                logging.warning(
-                    "Unduck on error path also failed.", exc_info=True
-                )
+                logging.warning("Unduck on error path also failed.", exc_info=True)
         finally:
-            # TRAY-03: Always restore idle icon and clear speaking flag
             STATE["speaking"] = False
             _swap_icon(create_image_idle, "idle")
             TTS_QUEUE.task_done()
