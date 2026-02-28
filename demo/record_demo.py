@@ -5,7 +5,7 @@ Records 5 feature clips using pyautogui + FFmpeg.
 Run with: python demo/record_demo.py
 
 Prerequisites:
-  pip install pyautogui pygetwindow requests pillow
+  pip install pyautogui pygetwindow requests pillow pyperclip
   AgentTalk service running at localhost:5050
   FFmpeg on PATH
   Windows Terminal (wt.exe) installed
@@ -349,3 +349,32 @@ def clip_05_tray_icon(audio_device: str) -> None:
         type_prompt("Count from one to ten, saying each number on its own line.")
 
     record_clip("05-tray-icon", audio_device, steps)
+
+
+def run_demo() -> None:
+    """Run all 5 demo clips in sequence."""
+    print("AgentTalk Demo Recorder")
+    print("=======================")
+    DEMO_DIR.mkdir(exist_ok=True)
+
+    check_prerequisites()
+    audio_device = detect_audio_device()
+
+    launch_claude_terminal()
+
+    clip_01_auto_speak(audio_device)
+    clip_02_voice_switch(audio_device)
+    clip_03_30_voices(audio_device)
+    clip_04_semi_auto(audio_device)
+    clip_05_tray_icon(audio_device)
+
+    print("\n✓ All clips recorded!")
+    print(f"Output directory: {DEMO_DIR.resolve()}")
+    for name in CLIP_DURATIONS:
+        path = DEMO_DIR / f"{name}.mp4"
+        size_mb = path.stat().st_size / 1_048_576 if path.exists() else 0
+        print(f"  {name}.mp4  ({size_mb:.1f} MB)")
+
+
+if __name__ == "__main__":
+    run_demo()
