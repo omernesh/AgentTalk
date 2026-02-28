@@ -85,7 +85,7 @@ def check_prerequisites() -> None:
 
 
 # Keywords that identify loopback/output capture devices (in priority order)
-_LOOPBACK_KEYWORDS = ["stereo mix", "what u hear", "wave out", "output", "loopback"]
+_LOOPBACK_KEYWORDS = ["stereo mix", "what u hear", "wave out", "cable output", "loopback", "output"]
 
 
 def detect_audio_device() -> str:
