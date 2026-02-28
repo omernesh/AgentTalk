@@ -355,24 +355,33 @@ def run_demo() -> None:
     """Run all 5 demo clips in sequence."""
     print("AgentTalk Demo Recorder")
     print("=======================")
-    DEMO_DIR.mkdir(exist_ok=True)
+    DEMO_DIR.mkdir(parents=True, exist_ok=True)
 
     check_prerequisites()
     audio_device = detect_audio_device()
 
     launch_claude_terminal()
 
-    clip_01_auto_speak(audio_device)
-    clip_02_voice_switch(audio_device)
-    clip_03_30_voices(audio_device)
-    clip_04_semi_auto(audio_device)
-    clip_05_tray_icon(audio_device)
+    for clip_fn, label in [
+        (lambda: clip_01_auto_speak(audio_device), "01-auto-speak"),
+        (lambda: clip_02_voice_switch(audio_device), "02-voice-switch"),
+        (lambda: clip_03_30_voices(audio_device), "03-30-voices"),
+        (lambda: clip_04_semi_auto(audio_device), "04-semi-auto"),
+        (lambda: clip_05_tray_icon(audio_device), "05-tray-icon"),
+    ]:
+        try:
+            clip_fn()
+        except Exception as e:
+            print(f"  ✗ Clip {label} failed: {e}")
 
     print("\n✓ All clips recorded!")
     print(f"Output directory: {DEMO_DIR.resolve()}")
     for name in CLIP_DURATIONS:
         path = DEMO_DIR / f"{name}.mp4"
-        size_mb = path.stat().st_size / 1_048_576 if path.exists() else 0
+        try:
+            size_mb = path.stat().st_size / 1_048_576
+        except OSError:
+            size_mb = 0
         print(f"  {name}.mp4  ({size_mb:.1f} MB)")
 
 
