@@ -181,7 +181,8 @@ def _configure_audio() -> None:
         )
     except (AttributeError, TypeError):
         logging.error(
-            "Could not detect host API; using PortAudio defaults.", exc_info=True
+            "Unexpected type error querying audio host API — possible sounddevice API change.",
+            exc_info=True,
         )
 
 
@@ -552,18 +553,27 @@ async def update_config(req: ConfigRequest):
     updates = req.model_dump(exclude_none=True)
     if not updates:
         return JSONResponse({"status": "ok", "updated": []})
+    applied = []
+    ignored = []
     for key, value in updates.items():
         if key in STATE:
             STATE[key] = value
+            applied.append(key)
             logging.info("Config updated: %s = %s", key, value)
         else:
+            ignored.append(key)
             logging.warning("Config update ignored — unknown STATE key: %s", key)
+    response: dict = {"status": "ok", "updated": applied}
+    if ignored:
+        response["ignored"] = ignored
+    if not applied:
+        return JSONResponse(response)
     try:
         save_config(STATE)
     except OSError:
         logging.exception("save_config() failed — config not persisted.")
         return JSONResponse({"status": "error", "reason": "config save failed"}, status_code=500)
-    return JSONResponse({"status": "ok", "updated": list(updates.keys())})
+    return JSONResponse(response)
 
 
 @app.post(

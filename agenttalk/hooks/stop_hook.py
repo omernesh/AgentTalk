@@ -25,8 +25,15 @@ def _read_speech_mode() -> str:
     try:
         data = json.loads(_config_path().read_text(encoding='utf-8'))
         return data.get('speech_mode', 'auto')
-    except Exception:
-        return 'auto'  # fail-open: treat missing/unreadable config as auto mode
+    except FileNotFoundError:
+        return 'auto'  # config not yet written — benign on first run
+    except Exception as exc:
+        print(
+            f"[agenttalk stop_hook] WARNING: could not read speech_mode "
+            f"({type(exc).__name__}: {exc}) — defaulting to 'auto'.",
+            file=sys.stderr,
+        )
+        return 'auto'
 
 
 def main() -> None:
@@ -65,8 +72,15 @@ def main() -> None:
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT_SECS) as _:
             pass
+    except urllib.error.HTTPError as exc:
+        # 503 = warmup, 200/202 never reach here; anything else is unexpected
+        if exc.code not in (200, 202, 503):
+            print(
+                f"[agenttalk stop_hook] WARNING: /speak returned HTTP {exc.code}",
+                file=sys.stderr,
+            )
     except urllib.error.URLError:
-        pass  # Service not running or 503 warmup — silent fail
+        pass  # Service not running — acceptable; hook runs asynchronously
     except Exception as exc:
         print(f"[agenttalk stop_hook] Unexpected error: {exc}", file=sys.stderr)
 

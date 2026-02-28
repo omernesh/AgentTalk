@@ -36,8 +36,15 @@ def _read_speech_mode() -> str:
     try:
         data = json.loads(_config_path().read_text(encoding='utf-8'))
         return data.get('speech_mode', 'auto')
-    except Exception:
-        return 'auto'  # fail-open: treat missing/unreadable config as auto mode
+    except FileNotFoundError:
+        return 'auto'  # config not yet written — benign on first run
+    except Exception as exc:
+        print(
+            f"[agenttalk post_tool_use_hook] WARNING: could not read speech_mode "
+            f"({type(exc).__name__}: {exc}) — defaulting to 'auto'.",
+            file=sys.stderr,
+        )
+        return 'auto'
 
 
 def _extract_assistant_text(transcript_path: str) -> str:
@@ -51,32 +58,37 @@ def _extract_assistant_text(transcript_path: str) -> str:
     """
     try:
         lines = Path(transcript_path).read_text(encoding='utf-8').splitlines()
-        for line in reversed(lines):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                msg = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            # Unwrap message envelope if present
-            if msg.get('type') == 'message':
-                msg = msg.get('message', msg)
-            if msg.get('role') != 'assistant':
-                continue
-            content = msg.get('content', '')
-            if isinstance(content, str):
-                return content.strip()
-            if isinstance(content, list):
-                parts = [
-                    block['text']
-                    for block in content
-                    if isinstance(block, dict) and block.get('type') == 'text'
-                ]
-                return ' '.join(parts).strip()
+    except OSError as exc:
+        print(
+            f"[agenttalk post_tool_use_hook] WARNING: cannot read transcript "
+            f"({type(exc).__name__}: {exc})",
+            file=sys.stderr,
+        )
         return ''
-    except Exception:
-        return ''  # fail-open
+    for raw_line in reversed(lines):
+        stripped = raw_line.strip()
+        if not stripped:
+            continue
+        try:
+            msg = json.loads(stripped)
+        except json.JSONDecodeError:
+            continue
+        # Unwrap message envelope if present
+        if msg.get('type') == 'message':
+            msg = msg.get('message', msg)
+        if msg.get('role') != 'assistant':
+            continue
+        content = msg.get('content', '')
+        if isinstance(content, str):
+            return content.strip()
+        if isinstance(content, list):
+            parts = [
+                block['text']
+                for block in content
+                if isinstance(block, dict) and block.get('type') == 'text'
+            ]
+            return ' '.join(parts).strip()
+    return ''
 
 
 def _is_substantial(text: str) -> bool:
@@ -127,8 +139,15 @@ def main() -> None:
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT_SECS) as _:
             pass
+    except urllib.error.HTTPError as exc:
+        # 503 = warmup, 200/202 never reach here; anything else is unexpected
+        if exc.code not in (200, 202, 503):
+            print(
+                f"[agenttalk post_tool_use_hook] WARNING: /speak returned HTTP {exc.code}",
+                file=sys.stderr,
+            )
     except urllib.error.URLError:
-        pass  # Service not running or 503 warmup — silent fail
+        pass  # Service not running — acceptable; hook runs asynchronously
     except Exception as exc:
         print(f"[agenttalk post_tool_use_hook] Unexpected error: {exc}", file=sys.stderr)
 

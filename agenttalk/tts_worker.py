@@ -3,36 +3,19 @@ TTS worker module — bounded queue and daemon synthesis thread.
 
 Provides a threading.Queue(maxsize=10) for backpressure, a STATE dict
 for runtime volume/speed/voice/mute control, and a daemon thread that
-consumes individual str sentences, synthesizes via Kokoro, and plays audio.
+consumes individual str sentences, synthesizes via Kokoro or Piper, and
+plays audio via sounddevice.
 
-Each queue item is a single str sentence (not list[str]). The /speak endpoint
-enqueues sentences one by one so audio on sentence 1 begins playing while
-sentence 2 is still waiting in the queue (sentence-level TTS streaming).
-
-Plan: 02-02 — TTS Worker + /speak Endpoint
-Requirements: SVC-03, AUDIO-01, AUDIO-04, AUDIO-06, TTS-05
-
-Phase 4 additions (Plan 04-02):
-  - AudioDucker: ducks other audio sessions during TTS synthesis (AUDIO-07)
-  - play_cue(): synchronous WAV cue playback before/after speech (CUE-01, CUE-02, CUE-03)
-  - STATE["speaking"]: bool flag for tray icon speaking indicator (TRAY-03)
-  - STATE["pre_cue_path"], STATE["post_cue_path"]: configurable cue paths (CUE-04)
-  - Icon image swapping: speaking/idle indicator via tray icon (TRAY-03)
-  - start_tts_worker(kokoro_engine, icon=None): icon reference for image swap
-
-Phase 5 additions (Plan 05-01):
-  - STATE["model"]: TTS engine selector — "kokoro" (default) or "piper" (TTS-04)
-  - STATE["piper_model_path"]: absolute path to Piper ONNX model file (TTS-04)
-  - Plan 05-02 adds _get_active_engine() dispatcher for runtime engine switching
+Each queue item is a single str sentence. The /speak endpoint enqueues
+sentences one by one so audio on sentence 1 begins playing while sentence 2
+is still queued (sentence-level TTS streaming).
 
 CRITICAL: threading.Queue is used intentionally — NOT asyncio.Queue.
-asyncio.Queue is not thread-safe and must not be used as the bridge
-between FastAPI's async handlers and this blocking threading.Thread worker.
-(Research pitfall #1.)
+asyncio.Queue is not thread-safe for the bridge between FastAPI's async
+handlers and this blocking daemon thread.
 
 CRITICAL: kokoro.create() runs ONLY inside _tts_worker(). It is blocking
 CPU work and must never be called in the async FastAPI handler.
-(Research pitfall #2.)
 """
 
 import logging
@@ -80,7 +63,7 @@ TTS_QUEUE: queue.Queue = queue.Queue(maxsize=10)
 # Runtime state dict — read at synthesis time so changes take effect
 # on the NEXT sentence without service restart (AUDIO-06, TTS-05).
 STATE: dict = {
-    "volume": 1.0,              # 0.0–2.0; >1.0 clips via np.clip to protect speakers
+    "volume": 1.0,              # 0.0–1.0; clipped via np.clip to protect speakers
     "speed": 1.0,               # 0.5–2.0; passed to kokoro.create(speed=...)
     "voice": "af_heart",        # Kokoro voice identifier
     "muted": False,             # Skip synthesis entirely when True
@@ -99,6 +82,20 @@ _ducker: AudioDucker = AudioDucker()
 # Icon reference — set by start_tts_worker() when icon is available.
 # If None, icon image swapping is skipped (safe for testing without tray).
 _icon_ref = None
+
+# Consecutive synthesis failure counter — reset on each successful synthesis.
+# Used by _notify_if_degraded() to surface repeated failures via tray notification.
+_consecutive_failures: int = 0
+_MAX_CONSECUTIVE_FAILURES = 3
+
+
+def _notify_if_degraded(msg: str) -> None:
+    """Send a tray notification once consecutive failure threshold is reached."""
+    if _consecutive_failures >= _MAX_CONSECUTIVE_FAILURES and _icon_ref is not None:
+        try:
+            _icon_ref.notify(msg)
+        except Exception:
+            pass
 
 # Lazy-loaded Piper engine instance — None until STATE['model'] first switches to 'piper'.
 # _get_active_engine() creates it on demand and reloads it when piper_model_path changes.
@@ -167,7 +164,7 @@ def play_cue(path: str | None) -> None:
     """
     if not path:
         return
-    if platform.system() != "Windows":
+    if winsound is None:
         logging.debug("Audio cue skipped on non-Windows platform: %s", path)
         return
     try:
@@ -231,26 +228,27 @@ def _tts_worker(kokoro_engine) -> None:
     happen per sentence so the first sentence plays immediately after it is
     synthesized, without waiting for the full batch to queue up.
 
-    Phase 4 additions: audio ducking (AUDIO-07), pre/post cues (CUE-01–04),
-    speaking state flag (TRAY-03), icon image swapping (TRAY-03).
-
     Sequence per sentence:
       1. Check muted — skip sentence if True
       2. Skip if sentence is blank
       3. Set speaking=True, swap icon to speaking image
       4. Play pre-cue (synchronous WAV, if configured)
-      5. Duck other audio sessions
-      6. Synthesize and play the sentence
-      7. Unduck audio sessions
-      8. Play post-cue (synchronous WAV, if configured)
-      9. finally: set speaking=False, swap icon to idle, call task_done()
+      5. Resolve active engine — raises on misconfiguration (before ducking)
+      6. Duck other audio sessions
+      7. Synthesize and play the sentence
+      8. Unduck audio sessions
+      9. Play post-cue (synchronous WAV, if configured)
+      10. else: reset consecutive failure counter
+      11. finally: unduck if still ducked, set speaking=False, swap icon, task_done()
 
     The try/finally guarantees task_done() is always called, even on error.
-    The 'continue' in the muted/blank branches executes the finally block — correct Python behavior.
+    The 'continue' in the muted/blank branches executes the finally block — correct Python.
     """
+    global _consecutive_failures
     logging.info("TTS worker thread running.")
     while True:
         sentence: str = TTS_QUEUE.get()
+        ducked = False
         try:
             if STATE["muted"]:
                 logging.debug("TTS: muted - skipping sentence.")
@@ -261,9 +259,13 @@ def _tts_worker(kokoro_engine) -> None:
             STATE["speaking"] = True
             _swap_icon(create_image_speaking, "speaking")
             play_cue(STATE.get("pre_cue_path"))
-            _ducker.duck()
 
+            # Resolve engine before ducking — avoids briefly silencing other apps
+            # only to fail immediately after with a configuration error.
             engine = _get_active_engine(kokoro_engine)
+            _ducker.duck()
+            ducked = True
+
             logging.debug("TTS: synthesizing %r", sentence[:60])
             samples, rate = engine.create(
                 sentence,
@@ -271,22 +273,36 @@ def _tts_worker(kokoro_engine) -> None:
                 speed=STATE["speed"],
                 lang="en-us",
             )
-            scaled = samples * STATE["volume"]
-            if STATE["volume"] > 1.0:
-                scaled = np.clip(scaled, -1.0, 1.0)
+            scaled = np.clip(samples * STATE["volume"], -1.0, 1.0)
             sd.play(scaled, samplerate=rate)
             sd.wait()
 
             _ducker.unduck()
+            ducked = False
             play_cue(STATE.get("post_cue_path"))
 
+        except (RuntimeError, FileNotFoundError, ImportError) as config_err:
+            # Engine misconfiguration — actionable message, notify user after threshold.
+            _consecutive_failures += 1
+            logging.error(
+                "TTS engine configuration error (failure %d): %s",
+                _consecutive_failures, config_err,
+            )
+            _notify_if_degraded(f"AgentTalk: {config_err}")
         except Exception:
-            logging.exception("TTS worker error - skipping sentence.")
-            try:
-                _ducker.unduck()
-            except Exception:
-                logging.warning("Unduck on error path also failed.", exc_info=True)
+            _consecutive_failures += 1
+            logging.exception(
+                "TTS worker error (failure %d) — skipping sentence.", _consecutive_failures
+            )
+            _notify_if_degraded("AgentTalk: TTS synthesis failing. Check the log.")
+        else:
+            _consecutive_failures = 0  # reset on clean synthesis
         finally:
+            if ducked:
+                try:
+                    _ducker.unduck()
+                except Exception:
+                    logging.warning("Unduck in finally failed.", exc_info=True)
             STATE["speaking"] = False
             _swap_icon(create_image_idle, "idle")
             TTS_QUEUE.task_done()
