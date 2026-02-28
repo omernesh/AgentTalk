@@ -22,6 +22,7 @@ import logging
 import platform
 import queue
 import threading
+from dataclasses import dataclass
 
 import numpy as np
 import sounddevice as sd
@@ -54,8 +55,18 @@ from agenttalk.tray import create_image_idle, create_image_speaking
 # Module-level state
 # ---------------------------------------------------------------------------
 
+@dataclass(frozen=True)
+class _CueItem:
+    """Sentinel queue item that plays a cue sound without triggering synthesis.
+
+    The /speak handler pushes one _CueItem before sentences (pre_cue) and one
+    after (post_cue) so cues fire exactly once per response, not per sentence.
+    """
+    path: str
+
+
 # Bounded queue — maxsize=10 implements backpressure (AUDIO-04).
-# Each item is a single str sentence (not list[str]).
+# Each item is a str sentence or a _CueItem sentinel (plays audio cue, no synthesis).
 # /speak enqueues each sentence individually so sentence 1 plays immediately.
 # put_nowait() raises queue.Full when full; handler returns 429.
 TTS_QUEUE: queue.Queue = queue.Queue(maxsize=10)
@@ -228,18 +239,21 @@ def _tts_worker(kokoro_engine) -> None:
     happen per sentence so the first sentence plays immediately after it is
     synthesized, without waiting for the full batch to queue up.
 
-    Sequence per sentence:
-      1. Check muted — skip sentence if True
-      2. Skip if sentence is blank
-      3. Set speaking=True, swap icon to speaking image
-      4. Play pre-cue (synchronous WAV, if configured)
-      5. Resolve active engine — raises on misconfiguration (before ducking)
-      6. Duck other audio sessions
-      7. Synthesize and play the sentence
-      8. Unduck audio sessions
-      9. Play post-cue (synchronous WAV, if configured)
-      10. else: reset consecutive failure counter
-      11. finally: unduck if still ducked, set speaking=False, swap icon, task_done()
+    Sequence per item:
+      _CueItem: play the cue sound synchronously — no synthesis, no ducking.
+      str sentence:
+        1. Check muted — skip if True
+        2. Skip if blank
+        3. Set speaking=True, swap icon to speaking image
+        4. Resolve active engine — raises on misconfiguration (before ducking)
+        5. Duck other audio sessions
+        6. Synthesize and play the sentence
+        7. Unduck audio sessions
+        8. else: reset consecutive failure counter
+        9. finally: unduck if still ducked, set speaking=False, swap icon, task_done()
+
+    Cues fire once per response because /speak pushes _CueItem sentinels before
+    and after the sentence batch — not once per sentence.
 
     The try/finally guarantees task_done() is always called, even on error.
     The 'continue' in the muted/blank branches executes the finally block — correct Python.
@@ -247,7 +261,17 @@ def _tts_worker(kokoro_engine) -> None:
     global _consecutive_failures
     logging.info("TTS worker thread running.")
     while True:
-        sentence: str = TTS_QUEUE.get()
+        item = TTS_QUEUE.get()
+
+        # Cue sentinel — play sound immediately, no synthesis.
+        if isinstance(item, _CueItem):
+            try:
+                play_cue(item.path)
+            finally:
+                TTS_QUEUE.task_done()
+            continue
+
+        sentence: str = item
         ducked = False
         try:
             if STATE["muted"]:
@@ -258,7 +282,6 @@ def _tts_worker(kokoro_engine) -> None:
 
             STATE["speaking"] = True
             _swap_icon(create_image_speaking, "speaking")
-            play_cue(STATE.get("pre_cue_path"))
 
             # Resolve engine before ducking — avoids briefly silencing other apps
             # only to fail immediately after with a configuration error.
@@ -279,7 +302,6 @@ def _tts_worker(kokoro_engine) -> None:
 
             _ducker.unduck()
             ducked = False
-            play_cue(STATE.get("post_cue_path"))
 
         except (RuntimeError, FileNotFoundError, ImportError) as config_err:
             # Engine misconfiguration — actionable message, notify user after threshold.

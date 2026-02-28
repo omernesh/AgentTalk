@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field
 
 import pystray
 
-from agenttalk.tts_worker import TTS_QUEUE, STATE, start_tts_worker, _ducker
+from agenttalk.tts_worker import TTS_QUEUE, STATE, start_tts_worker, _ducker, _CueItem
 from agenttalk.tray import build_tray_icon
 from agenttalk.config_loader import load_config, save_config, _config_dir
 from agenttalk.preprocessor import preprocess
@@ -502,6 +502,14 @@ async def speak(req: SpeakRequest):
             status_code=200,
         )
 
+    # Push pre-cue sentinel before sentences — fires once per response, not per sentence.
+    pre_cue = STATE.get("pre_cue_path")
+    if pre_cue:
+        try:
+            TTS_QUEUE.put_nowait(_CueItem(pre_cue))
+        except queue.Full:
+            pass  # queue full — skip cue rather than block
+
     queued = 0
     dropped = 0
     for sentence in sentences:
@@ -521,6 +529,14 @@ async def speak(req: SpeakRequest):
             {"status": "dropped", "reason": "queue full"},
             status_code=429,
         )
+
+    # Push post-cue sentinel after sentences — only when at least one sentence was queued.
+    post_cue = STATE.get("post_cue_path")
+    if post_cue:
+        try:
+            TTS_QUEUE.put_nowait(_CueItem(post_cue))
+        except queue.Full:
+            pass  # queue full — skip cue rather than block
 
     return JSONResponse(
         {"status": "queued", "sentences": queued, "dropped": dropped},
