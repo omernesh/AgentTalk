@@ -185,8 +185,8 @@ def launch_claude_terminal() -> None:
     print("Launching Windows Terminal + Claude...")
     subprocess.Popen([
         "wt.exe",
-        "powershell", "-NoExit", "-Command",
-        f"$host.UI.RawUI.WindowTitle = '{TERMINAL_TITLE}'; claude",
+        "new-tab", "--title", TERMINAL_TITLE,
+        "powershell", "-NoExit", "-Command", "claude",
     ])
     print(f"  Waiting {CLAUDE_STARTUP_SLEEP}s for Claude to start...")
     time.sleep(CLAUDE_STARTUP_SLEEP)
