@@ -25,6 +25,7 @@ COMMANDS_SRC_DIR = _THIS_DIR / 'commands'
 COMMANDS_DEST_DIR = Path.home() / '.claude' / 'commands' / 'agenttalk'
 STOP_HOOK_PATH = HOOKS_DIR / 'stop_hook.py'
 SESSION_START_HOOK_PATH = HOOKS_DIR / 'session_start_hook.py'
+USER_PROMPT_HOOK_PATH = HOOKS_DIR / 'user_prompt_hook.py'
 SERVICE_PATH = _THIS_DIR / 'service.py'
 
 
@@ -168,12 +169,23 @@ def register_hooks(
         'timeout': 10,
     }
 
-    # Merge into existing Stop and SessionStart arrays
+    # Build UserPromptSubmit hook entry
+    user_prompt_entry = {
+        'type': 'command',
+        'command': _build_hook_command(pythonw, USER_PROMPT_HOOK_PATH),
+        'async': False,
+        'timeout': 5,
+    }
+
+    # Merge into existing Stop, SessionStart, and UserPromptSubmit arrays
     stop_groups = hooks_section.setdefault('Stop', [])
     _merge_hook_into_array(stop_groups, stop_entry, 'stop_hook.py')
 
     session_groups = hooks_section.setdefault('SessionStart', [])
     _merge_hook_into_array(session_groups, session_entry, 'session_start_hook.py')
+
+    user_prompt_groups = hooks_section.setdefault('UserPromptSubmit', [])
+    _merge_hook_into_array(user_prompt_groups, user_prompt_entry, 'user_prompt_hook.py')
 
     # Atomic write — write to .tmp then replace to avoid half-written settings.json
     # CRITICAL: encoding='utf-8' (NOT 'utf-8-sig') — BOM breaks Claude Code JSON parser
@@ -188,6 +200,7 @@ def register_hooks(
     print(f"AgentTalk hooks registered in {settings_path}")
     print(f"  Stop hook: {STOP_HOOK_PATH.resolve()}")
     print(f"  SessionStart hook: {SESSION_START_HOOK_PATH.resolve()}")
+    print(f"  UserPromptSubmit hook: {USER_PROMPT_HOOK_PATH.resolve()}")
 
 
 def register_commands() -> None:
