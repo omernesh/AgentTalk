@@ -267,3 +267,22 @@ agenttalk setup
 ## License
 
 MIT
+
+
+## OpenClaw Headless Mode (no tray)
+
+Set headless mode to disable system tray and local playback, and generate audio files for chat voice notes:
+
+```bash
+export AGENTTALK_HEADLESS=1
+export AGENTTALK_DISABLE_PLAYBACK=1
+python3 -m agenttalk.service &
+
+# Generate an OGG/Opus voice file
+curl -s -X POST http://localhost:5050/speak_file \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Hello from AgentTalk", "format":"ogg"}'
+```
+
+
+**Note:** OGG/Opus export uses `ffmpeg` if available; otherwise it falls back to WAV.

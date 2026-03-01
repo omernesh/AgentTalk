@@ -18,8 +18,7 @@ metadata:
 
 # AgentTalk — Real-Time Voice for OpenClaw
 
-AgentTalk gives your OpenClaw sessions a voice. Every assistant response is spoken
-aloud through your speakers using a local, offline TTS engine (no API keys required).
+AgentTalk gives your OpenClaw sessions a voice. For OpenClaw use **headless mode** (no tray, no local playback) and generate audio files for chat voice messages.
 
 ---
 
@@ -62,9 +61,9 @@ If the model is already downloaded, this is fast and safe to re-run.
 start /B pythonw -m agenttalk.service
 ```
 
-**macOS / Linux:**
+**macOS / Linux (OpenClaw headless):**
 ```bash
-python -m agenttalk.service &
+AGENTTALK_HEADLESS=1 AGENTTALK_DISABLE_PLAYBACK=1 python3 -m agenttalk.service &
 ```
 
 ### Step 5 — Verify
@@ -93,12 +92,12 @@ If the response is not `{"status":"ok"}`, start it (see Step 4 above).
 
 ## AI Agent: After Each Response
 
-After completing each assistant response, POST the response text to AgentTalk:
+After completing each assistant response, generate an audio file and send it as a voice note (requires `ffmpeg` for OGG/Opus; otherwise WAV is returned):
 
 ```bash
-curl -s -X POST http://localhost:5050/speak \
+curl -s -X POST http://localhost:5050/speak_file \
   -H "Content-Type: application/json" \
-  -d '{"text": "<YOUR_RESPONSE_TEXT>"}'
+  -d '{"text": "<YOUR_RESPONSE_TEXT>", "format": "ogg"}'
 ```
 
 **Guidelines for `<YOUR_RESPONSE_TEXT>`:**
@@ -114,8 +113,8 @@ AgentTalk is a local FastAPI service. Text is preprocessed (markdown stripped,
 paragraphs split into sentences) and queued to the Kokoro ONNX TTS engine.
 No data leaves the machine.
 
-**Endpoint:** `POST http://localhost:5050/speak`
-**Body:** `{"text": "text to speak"}`
+**Endpoint:** `POST http://localhost:5050/speak_file`
+**Body:** `{"text": "text to speak", "format": "ogg"}`
 
 ---
 
