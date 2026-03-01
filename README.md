@@ -53,7 +53,7 @@ Or double-click the **AgentTalk** desktop shortcut created by setup.
 
 ## How it works
 
-AgentTalk runs a local HTTP service on `localhost:5050`. Agent hooks and extensions call `POST /speak` at the end of each response. The service synthesizes speech using one of four offline engines — no cloud, no API keys.
+AgentTalk runs a local HTTP service on `localhost:5050`. Agent hooks and extensions call `POST /speak` at the end of each response. The service synthesizes speech using one of two offline engines — no cloud, no API keys.
 
 **Audio ducking (Windows):** While AgentTalk is speaking, all other system audio is automatically lowered to 50% volume via the Windows Core Audio API. Volume is restored the moment speech finishes — so you never miss a word over music or a video.
 
@@ -62,7 +62,7 @@ Claude Code / VSCode / Antigravity / opencode
            ↓
     POST localhost:5050/speak
            ↓
-    Kokoro / Piper / HebrewPiper / Light-BlueTTS
+    Kokoro / Piper
            ↓
       🔊 Your speakers
 ```
@@ -78,7 +78,7 @@ Type these as your message in Claude Code (or any supported agent):
 | `/agenttalk:mode` | Switch between **auto** (speaks every reply) and **semi-auto** (speak on demand) |
 | `/agenttalk:speak` | Speak the last response aloud (semi-auto mode) |
 | `/agenttalk:voice [name]` | Switch voice — e.g. `/agenttalk:voice bf_emma` |
-| `/agenttalk:model [kokoro\|piper\|hebrewpiper\|lightblue]` | Switch TTS engine |
+| `/agenttalk:model [kokoro\|piper]` | Switch TTS engine |
 | `/agenttalk:config` | Interactive configuration menu |
 | `/agenttalk:start` | Start the service if it is not running |
 | `/agenttalk:stop` | Stop the service and silence audio |
@@ -135,11 +135,6 @@ All settings live in the platform config directory and persist across restarts. 
 | `muted` | `false` | Tray → Mute |
 | `pre_cue_path` | `null` | `/agenttalk:config` → option 1 |
 | `post_cue_path` | `null` | `/agenttalk:config` → option 2 |
-| `hebrewpiper_host` | `http://localhost:8000` | `POST /config` |
-| `hebrewpiper_voice` | `female` | `POST /config` |
-| `lightblue_onnx_dir` | `null` | `POST /config` |
-| `lightblue_phonikud_path` | `null` | `POST /config` |
-| `lightblue_voice_path` | `null` | `POST /config` |
 
 ---
 
@@ -236,53 +231,6 @@ curl -X POST localhost:5050/config -d '{"voice": "bf_emma", "speed": 1.2}'
 curl -X POST localhost:5050/mute
 curl -X POST localhost:5050/unmute
 ```
-
----
-
-## Hebrew TTS
-
-AgentTalk supports two Hebrew speech engines, switchable at runtime:
-
-| Engine | `model` value | Requires | Quality |
-|--------|--------------|----------|---------|
-| [PiperStream](https://github.com/maxmelichov/PiperStream) | `hebrewpiper` | Docker | Good |
-| [Light-BlueTTS](https://github.com/maxmelichov/Light-BlueTTS) | `lightblue` | torch (~2 GB) | High |
-
-### Option A — HebrewPiper (Docker, easiest)
-
-```bash
-# 1. Clone and start the Docker service
-git clone https://github.com/maxmelichov/PiperStream
-cd PiperStream && docker compose up
-
-# 2. Switch AgentTalk to Hebrew
-curl -X POST localhost:5050/config \
-  -H "Content-Type: application/json" \
-  -d '{"model": "hebrewpiper", "hebrewpiper_host": "http://localhost:8000", "hebrewpiper_voice": "female"}'
-```
-
-### Option B — Light-BlueTTS (local, no Docker)
-
-```bash
-# 1. Install deps and clone repo
-pip install onnxruntime phonikud phonikud-onnx soundfile torch torchaudio
-git clone https://github.com/maxmelichov/Light-BlueTTS
-# Download the 9 ONNX model files per the repo README
-
-# 2. Switch AgentTalk to Hebrew
-curl -X POST localhost:5050/config \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "lightblue",
-    "lightblue_onnx_dir": "C:/Light-BlueTTS/onnx_models",
-    "lightblue_phonikud_path": "C:/Light-BlueTTS/phonikud-1.0.onnx",
-    "lightblue_voice_path": "C:/Light-BlueTTS/voices/female1.json"
-  }'
-```
-
-Switch back to English at any time: `curl -X POST localhost:5050/config -d '{"model": "kokoro"}'`
-
-Full setup guide: [`docs/hebrew-tts-setup.md`](docs/hebrew-tts-setup.md)
 
 ---
 

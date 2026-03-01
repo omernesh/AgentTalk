@@ -21,14 +21,6 @@ from PIL import Image, ImageDraw
 from agenttalk.config_loader import _config_dir
 
 
-# Hebrew voice namespace: maps human names to LightBlueTTS voice filenames
-HEBREW_VOICE_MAP: Final[dict[str, str]] = {"einav": "female1", "yuval": "male1"}
-
-
-def _hebrew_voice_path(onnx_dir: str, filename: str) -> str:
-    """Return the absolute path to a LightBlueTTS voice JSON file."""
-    return str(Path(onnx_dir).parent / "voices" / f"{filename}.json")
-
 # All Kokoro voice identifiers (TRAY-04 — Voice submenu)
 KOKORO_VOICES = [
     "af_heart",
@@ -110,9 +102,7 @@ def build_tray_icon(
 
     Args:
         state: Shared mutable dict with keys 'muted' (bool), 'voice' (str),
-               'model' (str: 'kokoro', 'piper', 'lightblue', or 'hebrewpiper'),
-               'piper_model_path' (str|None), 'lightblue_onnx_dir' (str|None),
-               and 'lightblue_voice_path' (str|None).
+               'model' (str: 'kokoro' or 'piper'), and 'piper_model_path' (str|None).
                The tray menu reads and writes these keys in real time.
         on_quit: Optional callable invoked when the user selects Quit.
                  Called before icon.stop(). Use for cleanup (e.g., audio unduck).
@@ -175,22 +165,6 @@ def build_tray_icon(
             icon.update_menu()
         return _inner
 
-    def _set_hebrew_voice(voice_id: str, filename: str):
-        """Select a Hebrew voice: set model=lightblue, voice_path, voice."""
-        def _inner(icon, item):
-            onnx_dir = state.get("lightblue_onnx_dir")
-            if not onnx_dir:
-                logging.warning(
-                    "Hebrew voice selection ignored — lightblue_onnx_dir not configured."
-                )
-                return
-            state["lightblue_voice_path"] = _hebrew_voice_path(onnx_dir, filename)
-            state["model"] = "lightblue"
-            state["voice"] = voice_id
-            _invoke_config_change()
-            icon.update_menu()
-        return _inner
-
     def _quit(icon, item=None):
         if on_quit is not None:
             try:
@@ -224,7 +198,6 @@ def build_tray_icon(
                     radio=True,
                 )
         else:
-            # Non-piper mode — show Kokoro voices (and Hebrew voices if configured)
             for voice in KOKORO_VOICES:
                 yield pystray.MenuItem(
                     voice,
@@ -232,18 +205,6 @@ def build_tray_icon(
                     checked=lambda item, v=voice: state["voice"] == v,
                     radio=True,
                 )
-            # Hebrew voices (only when lightblue_onnx_dir is configured)
-            if state.get("lightblue_onnx_dir"):
-                yield pystray.Menu.SEPARATOR
-                for name, filename in HEBREW_VOICE_MAP.items():
-                    voice_id = f"he_{name}"
-                    display = name.capitalize() + " (Hebrew)"
-                    yield pystray.MenuItem(
-                        display,
-                        _set_hebrew_voice(voice_id, filename),
-                        checked=lambda item, v=voice_id: state.get("voice") == v,
-                        radio=True,
-                    )
 
     menu = pystray.Menu(
         # TRAY-02: Mute toggle with dynamic checkmark
@@ -268,18 +229,6 @@ def build_tray_icon(
                     checked=lambda item: state.get("model", "kokoro") == "piper",
                     radio=True,
                 ),
-                pystray.MenuItem(
-                    "lightblue",
-                    _set_model("lightblue"),
-                    checked=lambda item: state.get("model") == "lightblue",
-                    radio=True,
-                ),
-                pystray.MenuItem(
-                    "hebrewpiper",
-                    _set_model("hebrewpiper"),
-                    checked=lambda item: state.get("model") == "hebrewpiper",
-                    radio=True,
-                ),
             ),
         ),
         # TRAY-04: Voice submenu — context-aware (Kokoro voices or Piper .onnx stems)
@@ -294,8 +243,6 @@ def build_tray_icon(
             lambda item: (
                 f'Active: {Path(state["piper_model_path"]).stem}'
                 if state.get("model") == "piper" and state.get("piper_model_path")
-                else f'Active: {state["voice"]} (Hebrew)'
-                if state.get("model") in ("lightblue", "hebrewpiper")
                 else f'Active: {state["voice"]}'
             ),
             lambda icon, item: None,

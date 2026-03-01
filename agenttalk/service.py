@@ -26,10 +26,9 @@ from pydantic import BaseModel, Field
 import pystray
 
 from agenttalk.tts_worker import TTS_QUEUE, STATE, start_tts_worker, _ducker, _CueItem
-from agenttalk.tray import build_tray_icon, HEBREW_VOICE_MAP, _hebrew_voice_path
+from agenttalk.tray import build_tray_icon
 from agenttalk.config_loader import load_config, save_config, _config_dir
 from agenttalk.preprocessor import preprocess
-from agenttalk.translator import is_hebrew, translate_to_hebrew
 
 
 # ---------------------------------------------------------------------------
@@ -244,10 +243,10 @@ class ConfigRequest(BaseModel):
         ge=0.0, le=1.0,
         examples=[1.0],
     )
-    model: Literal["kokoro", "piper", "lightblue", "hebrewpiper"] | None = Field(
+    model: Literal["kokoro", "piper"] | None = Field(
         None,
-        description="TTS engine to use. 'kokoro' (default, English), 'piper' (alternative English, requires piper_model_path), 'lightblue' (Hebrew, local), or 'hebrewpiper' (Hebrew, Docker).",
-        examples=["kokoro", "piper", "lightblue", "hebrewpiper"],
+        description="TTS engine to use. 'kokoro' (default, English) or 'piper' (alternative English, requires piper_model_path).",
+        examples=["kokoro", "piper"],
     )
     muted: bool | None = Field(
         None,
@@ -273,30 +272,6 @@ class ConfigRequest(BaseModel):
         None,
         description="Speech mode: 'auto' (speak every reply) or 'semi-auto' (only speak when /speak is invoked).",
         examples=["auto", "semi-auto"],
-    )
-    hebrewpiper_host: str | None = Field(
-        None,
-        description="Base URL for PiperStream Docker service. Default: 'http://localhost:8000'.",
-        examples=["http://localhost:8000"],
-    )
-    hebrewpiper_voice: Literal["male", "female"] | None = Field(
-        None,
-        description="PiperStream voice. 'male' or 'female'. Default: 'female'.",
-    )
-    lightblue_onnx_dir: str | None = Field(
-        None,
-        description="Absolute path to Light-BlueTTS onnx_models/ directory.",
-        examples=["C:/Users/user/Light-BlueTTS/onnx_models"],
-    )
-    lightblue_phonikud_path: str | None = Field(
-        None,
-        description="Absolute path to phonikud-1.0.onnx. Default: 'phonikud-1.0.onnx' (cwd).",
-        examples=["C:/Users/user/Light-BlueTTS/phonikud-1.0.onnx"],
-    )
-    lightblue_voice_path: str | None = Field(
-        None,
-        description="Absolute path to a Light-BlueTTS voices/*.json style file.",
-        examples=["C:/Users/user/Light-BlueTTS/voices/female1.json"],
     )
 
 
@@ -353,12 +328,10 @@ async def _lifespan(app: FastAPI):
 
 
 _DESCRIPTION = """
-AgentTalk is a local text-to-speech service supporting four TTS engines:
+AgentTalk is a local text-to-speech service supporting two TTS engines:
 
 - **Kokoro ONNX** ([kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx)) — default engine, high quality, 11 English voices
 - **Piper TTS** ([piper-tts](https://github.com/OHF-voice/piper1-gpl)) — alternative English engine, switchable at runtime, multiple downloadable voice models
-- **HebrewPiper** ([PiperStream](https://github.com/maxmelichov/PiperStream)) — Hebrew TTS via Docker REST API, two voices (male/female)
-- **Light-BlueTTS** ([Light-BlueTTS](https://github.com/maxmelichov/Light-BlueTTS)) — Hebrew TTS via local ONNX inference, no Docker required
 
 It accepts plain text or Markdown, preprocesses it into speakable sentences, and plays audio through your default output device.
 
@@ -384,16 +357,6 @@ curl -X POST http://localhost:5050/speak \\
 Switch engines at runtime via `POST /config`:
 
 ```bash
-# Switch to HebrewPiper (Docker required)
-curl -X POST http://localhost:5050/config \\
-     -H "Content-Type: application/json" \\
-     -d '{"model": "hebrewpiper", "hebrewpiper_host": "http://localhost:8000"}'
-
-# Switch to Light-BlueTTS (local inference)
-curl -X POST http://localhost:5050/config \\
-     -H "Content-Type: application/json" \\
-     -d '{"model": "lightblue", "lightblue_onnx_dir": "C:/Light-BlueTTS/onnx_models", "lightblue_voice_path": "C:/Light-BlueTTS/voices/female1.json"}'
-
 # Switch to Piper (English)
 curl -X POST http://localhost:5050/config \\
      -H "Content-Type: application/json" \\
@@ -448,14 +411,9 @@ def health():
     },
 )
 def list_voices():
-    """Returns all available voice IDs. Kokoro voices are always included.
-    Hebrew voices (he_* prefix) are appended when lightblue_onnx_dir is configured.
-    For Piper voice models see `GET /piper-voices`."""
+    """Returns all available Kokoro voice IDs. For Piper voice models see `GET /piper-voices`."""
     from agenttalk.tray import KOKORO_VOICES
-    voices = list(KOKORO_VOICES)
-    if STATE.get("lightblue_onnx_dir"):
-        voices += [f"he_{name}" for name in HEBREW_VOICE_MAP]
-    return JSONResponse({"voices": voices})
+    return JSONResponse({"voices": list(KOKORO_VOICES)})
 
 
 @app.get(
@@ -469,34 +427,24 @@ def list_voices():
 def get_config():
     """Returns the full current runtime state:
     - `voice`: active Kokoro voice ID (used when `model` is `"kokoro"`)
-    - `model`: active TTS engine — `"kokoro"`, `"piper"`, `"lightblue"`, or `"hebrewpiper"`
+    - `model`: active TTS engine — `"kokoro"` or `"piper"`
     - `speed`: speech speed multiplier (0.5–2.0)
     - `volume`: playback volume (0.0–1.0)
     - `muted`: when true, synthesis is skipped entirely
     - `pre_cue_path` / `post_cue_path`: optional WAV paths played before/after each utterance
     - `piper_model_path`: absolute path to the active Piper ONNX model (used when `model` is `"piper"`)
     - `speech_mode`: `"auto"` (speak every reply) or `"semi-auto"` (only speak when /speak is invoked)
-    - `hebrewpiper_host`: PiperStream Docker service URL (used when `model` is `"hebrewpiper"`)
-    - `hebrewpiper_voice`: PiperStream voice — `"male"` or `"female"`
-    - `lightblue_onnx_dir`: absolute path to Light-BlueTTS onnx_models/ directory
-    - `lightblue_phonikud_path`: absolute path to phonikud-1.0.onnx
-    - `lightblue_voice_path`: absolute path to a voices/*.json style file
     """
     return JSONResponse({
-        "voice":                  STATE.get("voice"),
-        "model":                  STATE.get("model"),
-        "speed":                  STATE.get("speed"),
-        "volume":                 STATE.get("volume"),
-        "muted":                  STATE.get("muted"),
-        "pre_cue_path":           STATE.get("pre_cue_path"),
-        "post_cue_path":          STATE.get("post_cue_path"),
-        "piper_model_path":       STATE.get("piper_model_path"),
-        "speech_mode":            STATE.get("speech_mode"),
-        "hebrewpiper_host":       STATE.get("hebrewpiper_host"),
-        "hebrewpiper_voice":      STATE.get("hebrewpiper_voice"),
-        "lightblue_onnx_dir":     STATE.get("lightblue_onnx_dir"),
-        "lightblue_phonikud_path": STATE.get("lightblue_phonikud_path"),
-        "lightblue_voice_path":   STATE.get("lightblue_voice_path"),
+        "voice":            STATE.get("voice"),
+        "model":            STATE.get("model"),
+        "speed":            STATE.get("speed"),
+        "volume":           STATE.get("volume"),
+        "muted":            STATE.get("muted"),
+        "pre_cue_path":     STATE.get("pre_cue_path"),
+        "post_cue_path":    STATE.get("post_cue_path"),
+        "piper_model_path": STATE.get("piper_model_path"),
+        "speech_mode":      STATE.get("speech_mode"),
     })
 
 
@@ -523,33 +471,6 @@ def list_piper_voices():
         return JSONResponse({"voices": [], "dir": str(piper_dir)})
     voices = sorted(p.stem for p in piper_dir.glob("*.onnx"))
     return JSONResponse({"voices": voices, "dir": str(piper_dir)})
-
-
-@app.get(
-    "/hebrew-voices",
-    tags=["Status"],
-    summary="List available Hebrew TTS voices",
-    responses={
-        200: {"description": "Available voices for Hebrew TTS engines."},
-    },
-)
-def list_hebrew_voices():
-    """Returns available voices for Hebrew TTS engines.
-
-    For model='hebrewpiper': static list ['male', 'female'] (built into PiperStream).
-    For model='lightblue': scans the parent directory of lightblue_voice_path for *.json files.
-    Set lightblue_voice_path in POST /config to enable voice discovery.
-    """
-    result = {
-        "hebrewpiper": ["male", "female"],
-        "lightblue": [],
-    }
-    voice_path: str | None = STATE.get("lightblue_voice_path")
-    if voice_path:
-        voices_dir = Path(voice_path).parent
-        if voices_dir.exists():
-            result["lightblue"] = [p.stem for p in sorted(voices_dir.glob("*.json"))]
-    return JSONResponse(result)
 
 
 @app.post(
@@ -593,24 +514,6 @@ async def speak(req: SpeakRequest):
             {"status": "skipped", "reason": "no speakable sentences"},
             status_code=200,
         )
-
-    # Hebrew translation fallback: translate English→Hebrew when Hebrew engine is active.
-    # Check joined sentences (post-preprocess) so stripped Markdown doesn't skew detection.
-    # Run in executor so the blocking SDK network call doesn't freeze the async event loop.
-    if STATE.get("model") in ("lightblue", "hebrewpiper"):
-        if not is_hebrew(" ".join(sentences)):
-            import asyncio
-            loop = asyncio.get_event_loop()
-            translated = await loop.run_in_executor(
-                None, translate_to_hebrew, sentences, _tray_icon
-            )
-            if len(translated) == len(sentences):
-                sentences = translated
-            else:
-                logging.warning(
-                    "translate_to_hebrew() returned %d items for %d sentences — using original.",
-                    len(translated), len(sentences),
-                )
 
     # Push pre-cue sentinel before sentences — fires once per response, not per sentence.
     pre_cue = STATE.get("pre_cue_path")
@@ -661,7 +564,6 @@ async def speak(req: SpeakRequest):
     status_code=200,
     responses={
         200: {"description": "Settings updated and persisted to config.json."},
-        400: {"description": "Invalid value — e.g. unknown Hebrew voice or missing lightblue_onnx_dir."},
         500: {"description": "Config file could not be saved (settings applied in-memory only)."},
     },
 )
@@ -680,26 +582,6 @@ async def update_config(req: ConfigRequest):
     updates = req.model_dump(exclude_none=True)
     if not updates:
         return JSONResponse({"status": "ok", "updated": []})
-
-    # Hebrew voice auto-expansion: he_einav → model=lightblue + lightblue_voice_path + voice=he_einav
-    voice = updates.get("voice")
-    if isinstance(voice, str) and voice.startswith("he_"):
-        stem = voice[3:]  # strip "he_"
-        filename = HEBREW_VOICE_MAP.get(stem)
-        if filename is None:
-            return JSONResponse(
-                {"status": "error", "reason": f"Unknown Hebrew voice: {voice}"},
-                status_code=400,
-            )
-        onnx_dir: str | None = STATE.get("lightblue_onnx_dir")
-        if not onnx_dir:
-            return JSONResponse(
-                {"status": "error", "reason": "lightblue_onnx_dir not configured. Set it first via POST /config."},
-                status_code=400,
-            )
-        updates["model"] = "lightblue"
-        updates["lightblue_voice_path"] = _hebrew_voice_path(onnx_dir, filename)
-        # updates["voice"] already = "he_einav" — kept as-is
 
     applied = []
     ignored = []
@@ -797,8 +679,6 @@ def main() -> None:
         for _key in (
             "voice", "speed", "volume", "model", "muted",
             "pre_cue_path", "post_cue_path", "piper_model_path", "speech_mode",
-            "hebrewpiper_host", "hebrewpiper_voice",
-            "lightblue_onnx_dir", "lightblue_phonikud_path", "lightblue_voice_path",
         ):
             if _key in _cfg and _cfg[_key] is not None:
                 STATE[_key] = _cfg[_key]
