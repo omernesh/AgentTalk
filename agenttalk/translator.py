@@ -1,21 +1,17 @@
 """
-translator.py — Hebrew translation fallback for AgentTalk.
+translator.py — English→Hebrew translation for AgentTalk TTS.
 
-Translates English sentences to Hebrew when a Hebrew TTS engine is active
-and the input text is not already Hebrew.
+When a Hebrew voice is active (lightblue/hebrewpiper), Claude's English responses
+are translated to Hebrew before synthesis. Written terminal output stays in English.
 
-Used in service.py /speak handler after preprocess(), before queuing.
-Hook-first (user_prompt_hook.py) is preferred — this is the fallback.
+Translation strategy (tried in order):
+1. Google Translate unofficial API — free, no API key, uses httpx (already installed).
+2. anthropic SDK — requires ANTHROPIC_API_KEY as a Windows system env var.
+3. Fail-open — returns original text unchanged, logs the reason.
 
-Translation strategy:
-1. anthropic SDK — requires ANTHROPIC_API_KEY in the environment.
-2. Fail-open — returns original text unchanged, logs how to enable translation.
-
-Note: Claude Max OAuth tokens (from ~/.claude/.credentials.json) are not accepted
-by api.anthropic.com ("OAuth authentication is currently not supported"). The claude
-CLI hangs indefinitely in headless environments. Both approaches were investigated and
-ruled out. To enable translation, set ANTHROPIC_API_KEY as a Windows system
-environment variable (not just terminal) so pythonw.exe can see it.
+Note: Claude Max OAuth tokens are rejected by api.anthropic.com ("OAuth
+authentication is currently not supported"). The claude CLI hangs in headless
+pythonw.exe environments. Neither approach works without ANTHROPIC_API_KEY.
 """
 import json
 import logging
@@ -87,6 +83,44 @@ def _parse_json_array(raw: str, expected_len: int) -> list[str]:
     return result
 
 
+def _translate_via_google(sentences: list[str]) -> list[str]:
+    """
+    Translate using the unofficial Google Translate endpoint.
+
+    No API key required. Uses httpx (installed as a FastAPI dependency).
+    Joins sentences with newline, translates as one request, splits result.
+    Raises RuntimeError/ValueError on failure so the caller can fall through.
+    """
+    import httpx
+
+    text = "\n".join(sentences)
+    resp = httpx.get(
+        "https://translate.googleapis.com/translate_a/single",
+        params={"client": "gtx", "sl": "en", "tl": "he", "dt": "t", "q": text},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+
+    # Response: data[0] = list of [translated_chunk, original_chunk, ...]
+    translated = "".join(chunk[0] for chunk in data[0] if chunk[0])
+
+    if not translated:
+        raise ValueError("Google Translate returned empty translation")
+
+    # Split back into individual sentences
+    result = translated.split("\n")
+    if len(result) != len(sentences):
+        # Mismatch — return as single joined translation distributed to first sentence
+        # (acceptable for short inputs; better than failing completely)
+        if len(sentences) == 1:
+            return [translated]
+        raise ValueError(
+            f"Google Translate split mismatch: expected {len(sentences)}, got {len(result)}"
+        )
+    return result
+
+
 def _translate_via_sdk(sentences: list[str]) -> list[str]:
     """
     Translate using the anthropic Python SDK.
@@ -134,7 +168,15 @@ def translate_to_hebrew(sentences: list[str], icon: "pystray.Icon | None" = None
     if not sentences:
         return sentences
 
-    # Try anthropic SDK (requires ANTHROPIC_API_KEY as a Windows system env var)
+    # 1. Google Translate — free, no API key needed
+    try:
+        result = _translate_via_google(sentences)
+        logger.debug("translate_to_hebrew: translated %d sentences via Google Translate.", len(sentences))
+        return result
+    except Exception as e:
+        logger.debug("Google Translate unavailable: %s — trying anthropic SDK.", e)
+
+    # 2. anthropic SDK (requires ANTHROPIC_API_KEY as a Windows system env var)
     try:
         result = _translate_via_sdk(sentences)
         logger.debug("translate_to_hebrew: translated %d sentences via anthropic SDK.", len(sentences))
@@ -145,7 +187,6 @@ def translate_to_hebrew(sentences: list[str], icon: "pystray.Icon | None" = None
             "Install with: pip install anthropic"
         )
     except RuntimeError as e:
-        # ANTHROPIC_API_KEY not set — log once with instructions, then fail-open silently
         logger.warning(
             "Hebrew translation unavailable: %s. "
             "Set ANTHROPIC_API_KEY as a Windows system environment variable "
@@ -159,7 +200,7 @@ def translate_to_hebrew(sentences: list[str], icon: "pystray.Icon | None" = None
     # Fail-open: return original text, optionally notify via tray
     if icon is not None:
         try:
-            icon.notify("Hebrew translation unavailable — set ANTHROPIC_API_KEY.", "AgentTalk")
+            icon.notify("Hebrew translation unavailable.", "AgentTalk")
         except Exception:
             logger.debug("icon.notify() failed during translate_to_hebrew.", exc_info=True)
     return sentences
