@@ -34,12 +34,33 @@ curl -s -X POST http://localhost:5050/config \
   --max-time 5
 ```
 
-**Selecting a Hebrew voice (he_einav or he_yuval) automatically:**
+**If a Hebrew voice is selected (he_*):**
+
+Selecting a Hebrew voice (he_einav or he_yuval) automatically:
 - Sets model=lightblue
 - Configures lightblue_voice_path to the correct voice file
 - Sets voice=he_einav (or he_yuval)
 
 All three STATE changes happen in a single POST /config call — no extra steps needed.
+
+**If `model` is `hebrewpiper`:**
+
+Use the `/hebrew-voices` endpoint to see available voices:
+
+```bash
+curl -s http://localhost:5050/hebrew-voices --max-time 5
+```
+
+Select a voice by posting to `/config`:
+
+```bash
+curl -s -X POST http://localhost:5050/config \
+  -H "Content-Type: application/json" \
+  -d "{\"hebrewpiper_voice\": \"female\"}" \
+  --max-time 5
+```
+
+HebrewPiper supports `"male"` and `"female"` voices (built into the PiperStream Docker image).
 
 ---
 

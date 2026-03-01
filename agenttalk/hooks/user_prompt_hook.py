@@ -13,8 +13,9 @@ Exit 0 always — fail-open: Claude works normally if anything goes wrong.
 """
 import sys
 import json
-import os
 from pathlib import Path
+
+from agenttalk.config_loader import _config_dir
 
 # CRITICAL: Reconfigure stdout/stderr to utf-8 before any output.
 # Windows console defaults to cp1255 which cannot encode Hebrew characters.
@@ -32,18 +33,18 @@ _HEBREW_INSTRUCTION = """\
 
 
 def _config_path() -> Path:
-    appdata = os.environ.get('APPDATA') or Path.home() / 'AppData' / 'Roaming'
-    return Path(appdata) / 'AgentTalk' / 'config.json'
+    return _config_dir() / 'config.json'
 
 
 def main() -> None:
+    # SYNC: keep in sync with integrations/opencode/user_prompt_hook.py
     try:
         data = json.loads(_config_path().read_text(encoding='utf-8'))
         model = data.get('model', 'kokoro')
         if model in ('lightblue', 'hebrewpiper'):
             print(_HEBREW_INSTRUCTION)
-    except Exception:
-        pass  # Fail-open: Claude works normally without Hebrew instruction
+    except Exception as e:
+        print(f"AgentTalk user_prompt_hook error: {e}", file=sys.stderr)
     sys.exit(0)
 
 

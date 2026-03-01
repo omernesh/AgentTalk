@@ -32,6 +32,7 @@ _HEBREW_INSTRUCTION = """\
 
 
 def main() -> None:
+    # SYNC: keep in sync with agenttalk/hooks/user_prompt_hook.py
     try:
         req = urllib.request.Request(CONFIG_URL, method='GET')
         with urllib.request.urlopen(req, timeout=2) as resp:
@@ -40,9 +41,11 @@ def main() -> None:
         if model in ('lightblue', 'hebrewpiper'):
             print(_HEBREW_INSTRUCTION)
     except urllib.error.URLError:
-        pass  # Service not running — fail-open
-    except Exception:
-        pass  # Any other error — fail-open
+        pass  # Service not running — expected, fail-open
+    except json.JSONDecodeError as e:
+        print(f"AgentTalk user_prompt_hook: malformed config response — {e}", file=sys.stderr)
+    except Exception as e:
+        print(f"AgentTalk user_prompt_hook error: {e}", file=sys.stderr)
     sys.exit(0)
 
 

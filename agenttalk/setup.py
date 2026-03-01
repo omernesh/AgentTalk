@@ -51,15 +51,28 @@ def _write_path_files(pythonw: Path) -> None:
     AGENTTALK_DIR.mkdir(parents=True, exist_ok=True)
     pythonw_txt = AGENTTALK_DIR / 'pythonw_path.txt'
     service_txt = AGENTTALK_DIR / 'service_path.txt'
+
+    def _write_atomic(dest: Path, content: str) -> None:
+        tmp = dest.with_suffix('.tmp')
+        try:
+            tmp.write_text(content, encoding='utf-8')
+            tmp.replace(dest)
+        except Exception:
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise
+
     try:
-        pythonw_txt.write_text(str(pythonw.resolve()), encoding='utf-8')
+        _write_atomic(pythonw_txt, str(pythonw.resolve()))
     except OSError as exc:
         raise OSError(
             f"Cannot write {pythonw_txt}: {exc}\n"
             "Check that the AgentTalk directory is writable."
         ) from exc
     try:
-        service_txt.write_text(str(SERVICE_PATH.resolve()), encoding='utf-8')
+        _write_atomic(service_txt, str(SERVICE_PATH.resolve()))
     except OSError as exc:
         raise OSError(
             f"Cannot write {service_txt}: {exc}\n"
@@ -121,8 +134,8 @@ def _merge_hook_into_array(
 
 
 def register_hooks(
-    pythonw: 'Path | None' = None,
-    settings_path: 'Path | None' = None,
+    pythonw: Path | None = None,
+    settings_path: Path | None = None,
 ) -> None:
     """
     Merge AgentTalk hooks into ~/.claude/settings.json without overwriting
@@ -191,10 +204,13 @@ def register_hooks(
     # CRITICAL: encoding='utf-8' (NOT 'utf-8-sig') — BOM breaks Claude Code JSON parser
     tmp_path = settings_path.with_suffix('.json.tmp')
     try:
-        tmp_path.write_text(json.dumps(settings, indent=2), encoding='utf-8')
+        tmp_path.write_text(json.dumps(settings, indent=2, ensure_ascii=False), encoding='utf-8')
         tmp_path.replace(settings_path)
     except Exception:
-        tmp_path.unlink(missing_ok=True)
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
         raise
 
     print(f"AgentTalk hooks registered in {settings_path}")
@@ -216,12 +232,18 @@ def register_commands() -> None:
 
     Idempotent: overwrites existing files on re-run so updates are picked up.
     """
+    if not COMMANDS_SRC_DIR.exists():
+        print(f"WARNING: Commands source directory not found: {COMMANDS_SRC_DIR}")
+        return
     COMMANDS_DEST_DIR.mkdir(parents=True, exist_ok=True)
     copied = []
     for src in COMMANDS_SRC_DIR.glob('*.md'):
         dest = COMMANDS_DEST_DIR / src.name
-        shutil.copy2(src, dest)
-        copied.append(src.stem)
+        try:
+            shutil.copy2(src, dest)
+            copied.append(src.stem)
+        except OSError as exc:
+            print(f"WARNING: Could not copy {src.name}: {exc}")
     if copied:
         print(f"AgentTalk slash commands registered in {COMMANDS_DEST_DIR}")
         for name in sorted(copied):

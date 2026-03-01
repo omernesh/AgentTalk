@@ -13,7 +13,7 @@ Requirements: TRAY-01, TRAY-02, TRAY-03, TRAY-04, TRAY-05, TRAY-06
 """
 import logging
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Final
 
 import pystray
 from PIL import Image, ImageDraw
@@ -22,7 +22,12 @@ from agenttalk.config_loader import _config_dir
 
 
 # Hebrew voice namespace: maps human names to LightBlueTTS voice filenames
-HEBREW_VOICE_MAP = {"einav": "female1", "yuval": "male1"}
+HEBREW_VOICE_MAP: Final[dict[str, str]] = {"einav": "female1", "yuval": "male1"}
+
+
+def _hebrew_voice_path(onnx_dir: str, filename: str) -> str:
+    """Return the absolute path to a LightBlueTTS voice JSON file."""
+    return str(Path(onnx_dir).parent / "voices" / f"{filename}.json")
 
 # All Kokoro voice identifiers (TRAY-04 — Voice submenu)
 KOKORO_VOICES = [
@@ -43,7 +48,7 @@ KOKORO_VOICES = [
 def _draw_waveform(
     dc: ImageDraw.ImageDraw,
     size: int,
-    bar_color: tuple,
+    bar_color: tuple[int, int, int, int],
     heights_frac: list[float],
 ) -> None:
     """Draw 5 equalizer bars centered in the icon canvas."""
@@ -105,7 +110,9 @@ def build_tray_icon(
 
     Args:
         state: Shared mutable dict with keys 'muted' (bool), 'voice' (str),
-               'model' (str: 'kokoro' or 'piper'), and 'piper_model_path' (str|None).
+               'model' (str: 'kokoro', 'piper', 'lightblue', or 'hebrewpiper'),
+               'piper_model_path' (str|None), 'lightblue_onnx_dir' (str|None),
+               and 'lightblue_voice_path' (str|None).
                The tray menu reads and writes these keys in real time.
         on_quit: Optional callable invoked when the user selects Quit.
                  Called before icon.stop(). Use for cleanup (e.g., audio unduck).
@@ -173,8 +180,11 @@ def build_tray_icon(
         def _inner(icon, item):
             onnx_dir = state.get("lightblue_onnx_dir")
             if not onnx_dir:
+                logging.warning(
+                    "Hebrew voice selection ignored — lightblue_onnx_dir not configured."
+                )
                 return
-            state["lightblue_voice_path"] = str(Path(onnx_dir).parent / "voices" / f"{filename}.json")
+            state["lightblue_voice_path"] = _hebrew_voice_path(onnx_dir, filename)
             state["model"] = "lightblue"
             state["voice"] = voice_id
             _invoke_config_change()
@@ -258,6 +268,18 @@ def build_tray_icon(
                     checked=lambda item: state.get("model", "kokoro") == "piper",
                     radio=True,
                 ),
+                pystray.MenuItem(
+                    "lightblue",
+                    _set_model("lightblue"),
+                    checked=lambda item: state.get("model") == "lightblue",
+                    radio=True,
+                ),
+                pystray.MenuItem(
+                    "hebrewpiper",
+                    _set_model("hebrewpiper"),
+                    checked=lambda item: state.get("model") == "hebrewpiper",
+                    radio=True,
+                ),
             ),
         ),
         # TRAY-04: Voice submenu — context-aware (Kokoro voices or Piper .onnx stems)
@@ -272,6 +294,8 @@ def build_tray_icon(
             lambda item: (
                 f'Active: {Path(state["piper_model_path"]).stem}'
                 if state.get("model") == "piper" and state.get("piper_model_path")
+                else f'Active: {state["voice"]} (Hebrew)'
+                if state.get("model") in ("lightblue", "hebrewpiper")
                 else f'Active: {state["voice"]}'
             ),
             lambda icon, item: None,

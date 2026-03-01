@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field
 import pystray
 
 from agenttalk.tts_worker import TTS_QUEUE, STATE, start_tts_worker, _ducker, _CueItem
-from agenttalk.tray import build_tray_icon, HEBREW_VOICE_MAP
+from agenttalk.tray import build_tray_icon, HEBREW_VOICE_MAP, _hebrew_voice_path
 from agenttalk.config_loader import load_config, save_config, _config_dir
 from agenttalk.preprocessor import preprocess
 from agenttalk.translator import is_hebrew, translate_to_hebrew
@@ -229,6 +229,7 @@ class ConfigRequest(BaseModel):
     voice: str | None = Field(
         None,
         description="Kokoro voice ID (only used when model='kokoro'). See GET /voices for the full list.",
+        min_length=1,
         examples=["af_heart"],
     )
     speed: float | None = Field(
@@ -448,7 +449,7 @@ def health():
 )
 def list_voices():
     """Returns all available voice IDs. Kokoro voices are always included.
-    Hebrew voices (he_einav, he_yuval) are included when lightblue_onnx_dir is configured.
+    Hebrew voices (he_* prefix) are appended when lightblue_onnx_dir is configured.
     For Piper voice models see `GET /piper-voices`."""
     from agenttalk.tray import KOKORO_VOICES
     voices = list(KOKORO_VOICES)
@@ -543,7 +544,7 @@ def list_hebrew_voices():
         "hebrewpiper": ["male", "female"],
         "lightblue": [],
     }
-    voice_path = STATE.get("lightblue_voice_path")
+    voice_path: str | None = STATE.get("lightblue_voice_path")
     if voice_path:
         voices_dir = Path(voice_path).parent
         if voices_dir.exists():
@@ -593,10 +594,18 @@ async def speak(req: SpeakRequest):
             status_code=200,
         )
 
-    # Hebrew translation fallback: translate English→Hebrew when Hebrew engine is active
+    # Hebrew translation fallback: translate English→Hebrew when Hebrew engine is active.
+    # Check joined sentences (post-preprocess) so stripped Markdown doesn't skew detection.
     if STATE.get("model") in ("lightblue", "hebrewpiper"):
-        if not is_hebrew(req.text):
-            sentences = translate_to_hebrew(sentences, icon=_tray_icon)
+        if not is_hebrew(" ".join(sentences)):
+            translated = translate_to_hebrew(sentences, icon=_tray_icon)
+            if len(translated) == len(sentences):
+                sentences = translated
+            else:
+                logging.warning(
+                    "translate_to_hebrew() returned %d items for %d sentences — using original.",
+                    len(translated), len(sentences),
+                )
 
     # Push pre-cue sentinel before sentences — fires once per response, not per sentence.
     pre_cue = STATE.get("pre_cue_path")
@@ -647,6 +656,7 @@ async def speak(req: SpeakRequest):
     status_code=200,
     responses={
         200: {"description": "Settings updated and persisted to config.json."},
+        400: {"description": "Invalid value — e.g. unknown Hebrew voice or missing lightblue_onnx_dir."},
         500: {"description": "Config file could not be saved (settings applied in-memory only)."},
     },
 )
@@ -667,23 +677,23 @@ async def update_config(req: ConfigRequest):
         return JSONResponse({"status": "ok", "updated": []})
 
     # Hebrew voice auto-expansion: he_einav → model=lightblue + lightblue_voice_path + voice=he_einav
-    if updates.get("voice", "").startswith("he_"):
-        stem = updates["voice"][3:]  # strip "he_"
+    voice = updates.get("voice")
+    if isinstance(voice, str) and voice.startswith("he_"):
+        stem = voice[3:]  # strip "he_"
         filename = HEBREW_VOICE_MAP.get(stem)
         if filename is None:
             return JSONResponse(
-                {"status": "error", "reason": f"Unknown Hebrew voice: {updates['voice']}"},
+                {"status": "error", "reason": f"Unknown Hebrew voice: {voice}"},
                 status_code=400,
             )
-        onnx_dir = STATE.get("lightblue_onnx_dir")
+        onnx_dir: str | None = STATE.get("lightblue_onnx_dir")
         if not onnx_dir:
             return JSONResponse(
                 {"status": "error", "reason": "lightblue_onnx_dir not configured. Set it first via POST /config."},
                 status_code=400,
             )
-        voice_path = str(Path(onnx_dir).parent / "voices" / f"{filename}.json")
         updates["model"] = "lightblue"
-        updates["lightblue_voice_path"] = voice_path
+        updates["lightblue_voice_path"] = _hebrew_voice_path(onnx_dir, filename)
         # updates["voice"] already = "he_einav" — kept as-is
 
     applied = []
