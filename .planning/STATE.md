@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-02-26)
 Phase: 5 of 6 (Configuration, Voice/Model Switching, and Slash Commands) — IN PROGRESS
 Plan: 1 of 3 complete (05-01 done)
 Status: Wave 1 complete — save_config, /config + /stop endpoints, STATE engine keys added
-Last activity: 2026-03-01 - Completed quick task 8: Hebrew TTS support via HebrewPiperEngine (PiperStream Docker) and LightBlueTTSEngine (local inference)
+Last activity: 2026-03-01 - Completed quick task 9: Hebrew voices unified namespace (he_einav/he_yuval), translator.py, user_prompt_hook.py
 
 Progress: [████░░░░░░] 33%
 
@@ -105,10 +105,11 @@ Recent decisions affecting current work:
 | 5 | Audit preprocessor emotional-punctuation: 11 regression tests + preservation docstring + bold/italic regex fix | 2026-02-28 | 258d815 | Verified | [5-audit-text-filter-py-to-check-if-emotion](.planning/quick/5-audit-text-filter-py-to-check-if-emotion/) |
 | 6 | Sentence-level TTS streaming + PostToolUse early-speaking hook | 2026-02-28 | 33c20ed | Verified | [6-implement-agenttalk-latency-optimization](.planning/quick/6-implement-agenttalk-latency-optimization/) |
 | 7 | Paragraph-break sentence injection: step 9a regex in strip_markdown for pysbd sentence splitting | 2026-02-28 | a7dc694 | Verified | [7-fix-agenttalk-sentence-detection-so-it-p](.planning/quick/7-fix-agenttalk-sentence-detection-so-it-p/) |
-| 8 | Hebrew TTS: HebrewPiperEngine (PiperStream Docker) + LightBlueTTSEngine (local) + /hebrew-voices endpoint + docs | 2026-03-01 | 45f97b2 | Verified | [8-i-ve-found-two-interesting-enhancements-](.planning/quick/8-i-ve-found-two-interesting-enhancements-/) |
+| 8 | Hebrew TTS: HebrewPiperEngine (PiperStream Docker) + LightBlueTTSEngine (local) + /hebrew-voices endpoint + docs | 2026-03-01 | b169c66 | Tested ✓ | [8-i-ve-found-two-interesting-enhancements-](.planning/quick/8-i-ve-found-two-interesting-enhancements-/) |
+| 9 | Hebrew voices unified namespace: he_einav/he_yuval, translator.py, user_prompt_hook.py (Claude Code + opencode) | 2026-03-01 | e590407 | Verified ✓ | [9-hebrew-voices-integration-unified-namesp](.planning/quick/9-hebrew-voices-integration-unified-namesp/) |
 
 ## Session Continuity
 
 Last session: 2026-03-01
-Last activity: 2026-03-01 - Completed quick task 8 (verified): Hebrew TTS support via PiperStream and Light-BlueTTS
+Last activity: 2026-03-01 - Completed quick-9: Hebrew voices unified namespace — HEBREW_VOICE_MAP, GET /voices, POST /config he_ expansion, translator.py, user_prompt_hook.py (Claude Code + opencode), setup.py registration.
 Resume file: None
