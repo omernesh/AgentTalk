@@ -11,30 +11,19 @@ First check the active engine and available voices:
 
 ```bash
 curl -s http://localhost:5050/config --max-time 5
-curl -s http://localhost:5050/piper-voices --max-time 5
+curl -s http://localhost:5050/voices --max-time 5
 ```
 
 If the connection is refused, say "AgentTalk service is not running. Start it with /agenttalk:start." and stop.
 
 ---
 
-**If `model` is `kokoro`:**
+The `/voices` response contains a `voices` array with all available voices — Kokoro voices first, then Hebrew voices (he_einav, he_yuval) if LightBlueTTS is configured.
 
-**If $ARGUMENTS is empty or blank**, show this numbered list and ask the user to pick:
+**If $ARGUMENTS is empty or blank**, show the voices as a numbered list grouped by type and ask the user to pick:
 
-```
-1.  af_heart    — American Female (warm, default)
-2.  af_bella    — American Female (bright)
-3.  af_nicole   — American Female (calm)
-4.  af_sarah    — American Female (clear)
-5.  af_sky      — American Female (airy)
-6.  am_adam     — American Male
-7.  am_michael  — American Male
-8.  bf_emma     — British Female
-9.  bf_isabella — British Female
-10. bm_george   — British Male
-11. bm_lewis    — British Male
-```
+- Kokoro voices (English): show with their display names where known
+- Hebrew voices (he_einav, he_yuval): label them as "(Hebrew — LightBlueTTS)"
 
 Wait for user to pick, resolve to voice ID, then:
 
@@ -45,9 +34,22 @@ curl -s -X POST http://localhost:5050/config \
   --max-time 5
 ```
 
+**Selecting a Hebrew voice (he_einav or he_yuval) automatically:**
+- Sets model=lightblue
+- Configures lightblue_voice_path to the correct voice file
+- Sets voice=he_einav (or he_yuval)
+
+All three STATE changes happen in a single POST /config call — no extra steps needed.
+
 ---
 
 **If `model` is `piper`:**
+
+Also fetch piper voices:
+
+```bash
+curl -s http://localhost:5050/piper-voices --max-time 5
+```
 
 The `/piper-voices` response contains a `voices` array of model stems (e.g. `en_US-lessac-medium`) and a `dir` path.
 

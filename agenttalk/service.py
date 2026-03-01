@@ -30,6 +30,9 @@ from agenttalk.tray import build_tray_icon
 from agenttalk.config_loader import load_config, save_config, _config_dir
 from agenttalk.preprocessor import preprocess
 
+# Hebrew voice namespace: maps human names to LightBlueTTS voice filenames
+HEBREW_VOICE_MAP = {"einav": "female1", "yuval": "male1"}
+
 # ---------------------------------------------------------------------------
 # Platform-aware paths (cross-platform via _config_dir())
 # ---------------------------------------------------------------------------
@@ -445,10 +448,14 @@ def health():
     },
 )
 def list_voices():
-    """Returns all Kokoro voice IDs that can be passed to `POST /config` as `voice`.
-    These are only used when `model` is `kokoro`. For Piper voice models see `GET /piper-voices`."""
+    """Returns all available voice IDs. Kokoro voices are always included.
+    Hebrew voices (he_einav, he_yuval) are included when lightblue_onnx_dir is configured.
+    For Piper voice models see `GET /piper-voices`."""
     from agenttalk.tray import KOKORO_VOICES
-    return JSONResponse({"voices": KOKORO_VOICES})
+    voices = list(KOKORO_VOICES)
+    if STATE.get("lightblue_onnx_dir"):
+        voices += [f"he_{name}" for name in HEBREW_VOICE_MAP]
+    return JSONResponse({"voices": voices})
 
 
 @app.get(
@@ -654,6 +661,27 @@ async def update_config(req: ConfigRequest):
     updates = req.model_dump(exclude_none=True)
     if not updates:
         return JSONResponse({"status": "ok", "updated": []})
+
+    # Hebrew voice auto-expansion: he_einav → model=lightblue + lightblue_voice_path + voice=he_einav
+    if updates.get("voice", "").startswith("he_"):
+        stem = updates["voice"][3:]  # strip "he_"
+        filename = HEBREW_VOICE_MAP.get(stem)
+        if filename is None:
+            return JSONResponse(
+                {"status": "error", "reason": f"Unknown Hebrew voice: {updates['voice']}"},
+                status_code=400,
+            )
+        onnx_dir = STATE.get("lightblue_onnx_dir")
+        if not onnx_dir:
+            return JSONResponse(
+                {"status": "error", "reason": "lightblue_onnx_dir not configured. Set it first via POST /config."},
+                status_code=400,
+            )
+        voice_path = str(Path(onnx_dir).parent / "voices" / f"{filename}.json")
+        updates["model"] = "lightblue"
+        updates["lightblue_voice_path"] = voice_path
+        # updates["voice"] already = "he_einav" — kept as-is
+
     applied = []
     ignored = []
     for key, value in updates.items():

@@ -21,6 +21,9 @@ from PIL import Image, ImageDraw
 from agenttalk.config_loader import _config_dir
 
 
+# Hebrew voice namespace: maps human names to LightBlueTTS voice filenames
+HEBREW_VOICE_MAP = {"einav": "female1", "yuval": "male1"}
+
 # All Kokoro voice identifiers (TRAY-04 — Voice submenu)
 KOKORO_VOICES = [
     "af_heart",
@@ -165,6 +168,19 @@ def build_tray_icon(
             icon.update_menu()
         return _inner
 
+    def _set_hebrew_voice(voice_id: str, filename: str):
+        """Select a Hebrew voice: set model=lightblue, voice_path, voice."""
+        def _inner(icon, item):
+            onnx_dir = state.get("lightblue_onnx_dir")
+            if not onnx_dir:
+                return
+            state["lightblue_voice_path"] = str(Path(onnx_dir).parent / "voices" / f"{filename}.json")
+            state["model"] = "lightblue"
+            state["voice"] = voice_id
+            _invoke_config_change()
+            icon.update_menu()
+        return _inner
+
     def _quit(icon, item=None):
         if on_quit is not None:
             try:
@@ -206,6 +222,18 @@ def build_tray_icon(
                     checked=lambda item, v=voice: state["voice"] == v,
                     radio=True,
                 )
+            # Hebrew voices (only when lightblue_onnx_dir is configured)
+            if state.get("lightblue_onnx_dir"):
+                yield pystray.Menu.SEPARATOR
+                for name, filename in HEBREW_VOICE_MAP.items():
+                    voice_id = f"he_{name}"
+                    display = name.capitalize() + " (Hebrew)"
+                    yield pystray.MenuItem(
+                        display,
+                        _set_hebrew_voice(voice_id, filename),
+                        checked=lambda item, v=voice_id: state.get("voice") == v,
+                        radio=True,
+                    )
 
     menu = pystray.Menu(
         # TRAY-02: Mute toggle with dynamic checkmark
