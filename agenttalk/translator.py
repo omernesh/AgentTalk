@@ -14,6 +14,7 @@ Translation strategy (tried in order):
 """
 import json
 import logging
+import os
 import shutil
 import subprocess
 import unicodedata
@@ -97,10 +98,16 @@ def _translate_via_claude_cli(sentences: list[str]) -> list[str]:
     prompt = _PROMPT_TEMPLATE.format(
         sentences_json=json.dumps(sentences, ensure_ascii=False)
     )
+    # Remove CLAUDECODE so the claude CLI doesn't refuse to run inside a
+    # Claude Code session ("cannot be launched inside another Claude Code session").
+    # Pass stdin=DEVNULL so the CLI doesn't hang waiting for interactive input.
+    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
     result = subprocess.run(
         [claude_exe, "--print", "--output-format", "text", prompt],
         capture_output=True,
-        timeout=60,
+        stdin=subprocess.DEVNULL,
+        timeout=30,
+        env=env,
     )
     if result.returncode != 0:
         stderr = result.stderr.decode("utf-8", errors="replace")

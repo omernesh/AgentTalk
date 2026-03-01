@@ -596,9 +596,14 @@ async def speak(req: SpeakRequest):
 
     # Hebrew translation fallback: translate English→Hebrew when Hebrew engine is active.
     # Check joined sentences (post-preprocess) so stripped Markdown doesn't skew detection.
+    # Run in executor so the blocking subprocess.run doesn't freeze the async event loop.
     if STATE.get("model") in ("lightblue", "hebrewpiper"):
         if not is_hebrew(" ".join(sentences)):
-            translated = translate_to_hebrew(sentences, icon=_tray_icon)
+            import asyncio
+            loop = asyncio.get_event_loop()
+            translated = await loop.run_in_executor(
+                None, translate_to_hebrew, sentences, _tray_icon
+            )
             if len(translated) == len(sentences):
                 sentences = translated
             else:

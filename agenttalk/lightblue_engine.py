@@ -27,6 +27,8 @@ Speed handling: Light-BlueTTS bakes speed into TTSConfig at instantiation. If
 speed changes between calls, the engine is reloaded with the new TTSConfig
 (rare operation — speed changes are uncommon in practice).
 """
+import contextlib
+import io
 import logging
 
 import numpy as np
@@ -145,7 +147,11 @@ class LightBlueTTSEngine:
             self._speed = speed
 
         try:
-            wav = self._tts.infer(text, style_json_path=voice)
+            # Redirect stdout to suppress LightBlueTTS print() calls that contain
+            # IPA characters (e.g. ʃ) not encodable in the cp1252 codepage used by
+            # pythonw.exe, which would otherwise raise UnicodeEncodeError.
+            with contextlib.redirect_stdout(io.StringIO()):
+                wav = self._tts.infer(text, style_json_path=voice)
         except Exception as exc:
             raise RuntimeError(
                 f"LightBlueTTS inference failed for text {text[:60]!r} "
