@@ -105,7 +105,7 @@ Recent decisions affecting current work:
 | 5 | Audit preprocessor emotional-punctuation: 11 regression tests + preservation docstring + bold/italic regex fix | 2026-02-28 | 258d815 | Verified | [5-audit-text-filter-py-to-check-if-emotion](.planning/quick/5-audit-text-filter-py-to-check-if-emotion/) |
 | 6 | Sentence-level TTS streaming + PostToolUse early-speaking hook | 2026-02-28 | 33c20ed | Verified | [6-implement-agenttalk-latency-optimization](.planning/quick/6-implement-agenttalk-latency-optimization/) |
 | 7 | Paragraph-break sentence injection: step 9a regex in strip_markdown for pysbd sentence splitting | 2026-02-28 | a7dc694 | Verified | [7-fix-agenttalk-sentence-detection-so-it-p](.planning/quick/7-fix-agenttalk-sentence-detection-so-it-p/) |
-| 8 | Hebrew TTS: HebrewPiperEngine (PiperStream Docker) + LightBlueTTSEngine (local) + /hebrew-voices endpoint + docs | 2026-03-01 | ece02cf | Verified | [8-i-ve-found-two-interesting-enhancements-](.planning/quick/8-i-ve-found-two-interesting-enhancements-/) |
+| 8 | Hebrew TTS: HebrewPiperEngine (PiperStream Docker) + LightBlueTTSEngine (local) + /hebrew-voices endpoint + docs | 2026-03-01 | 45f97b2 | Verified | [8-i-ve-found-two-interesting-enhancements-](.planning/quick/8-i-ve-found-two-interesting-enhancements-/) |
 
 ## Session Continuity
 
