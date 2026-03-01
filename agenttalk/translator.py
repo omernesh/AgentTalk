@@ -7,16 +7,19 @@ and the input text is not already Hebrew.
 Used in service.py /speak handler after preprocess(), before queuing.
 Hook-first (user_prompt_hook.py) is preferred — this is the fallback.
 
-Translation strategy (tried in order):
-1. claude CLI — uses the user's existing Claude Code subscription, no extra API key needed.
-2. anthropic SDK — requires ANTHROPIC_API_KEY in the service environment (optional).
-3. Fail-open — returns original text unchanged, logs the reason.
+Translation strategy:
+1. anthropic SDK — requires ANTHROPIC_API_KEY in the environment.
+2. Fail-open — returns original text unchanged, logs how to enable translation.
+
+Note: Claude Max OAuth tokens (from ~/.claude/.credentials.json) are not accepted
+by api.anthropic.com ("OAuth authentication is currently not supported"). The claude
+CLI hangs indefinitely in headless environments. Both approaches were investigated and
+ruled out. To enable translation, set ANTHROPIC_API_KEY as a Windows system
+environment variable (not just terminal) so pythonw.exe can see it.
 """
 import json
 import logging
 import os
-import shutil
-import subprocess
 import unicodedata
 
 logger = logging.getLogger(__name__)
@@ -84,39 +87,6 @@ def _parse_json_array(raw: str, expected_len: int) -> list[str]:
     return result
 
 
-def _translate_via_claude_cli(sentences: list[str]) -> list[str]:
-    """
-    Translate using the installed `claude` CLI.
-
-    Uses the user's existing Claude Code subscription — no ANTHROPIC_API_KEY needed.
-    Raises RuntimeError/ValueError on any failure so the caller can fall through.
-    """
-    claude_exe = shutil.which("claude")
-    if not claude_exe:
-        raise RuntimeError("claude CLI not found on PATH")
-
-    prompt = _PROMPT_TEMPLATE.format(
-        sentences_json=json.dumps(sentences, ensure_ascii=False)
-    )
-    # Remove CLAUDECODE so the claude CLI doesn't refuse to run inside a
-    # Claude Code session ("cannot be launched inside another Claude Code session").
-    # Pass stdin=DEVNULL so the CLI doesn't hang waiting for interactive input.
-    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
-    result = subprocess.run(
-        [claude_exe, "--print", "--output-format", "text", prompt],
-        capture_output=True,
-        stdin=subprocess.DEVNULL,
-        timeout=30,
-        env=env,
-    )
-    if result.returncode != 0:
-        stderr = result.stderr.decode("utf-8", errors="replace")
-        raise RuntimeError(f"claude CLI exited {result.returncode}: {stderr[:200]}")
-
-    raw = result.stdout.decode("utf-8", errors="replace")
-    return _parse_json_array(raw, len(sentences))
-
-
 def _translate_via_sdk(sentences: list[str]) -> list[str]:
     """
     Translate using the anthropic Python SDK.
@@ -151,45 +121,45 @@ def translate_to_hebrew(sentences: list[str], icon: "pystray.Icon | None" = None
     """
     Translate a list of sentences to Hebrew.
 
-    Tries the claude CLI first (uses user's Claude Code subscription), then
-    falls back to the anthropic SDK (requires ANTHROPIC_API_KEY). On any
-    failure, logs the reason and returns the original sentences unchanged (fail-open).
+    Requires ANTHROPIC_API_KEY set as a Windows system environment variable.
+    On any failure, logs the reason and returns the original sentences unchanged (fail-open).
 
     Args:
         sentences: List of English (or mixed) sentences.
         icon: Optional pystray.Icon for tray notification on failure.
 
     Returns:
-        List of Hebrew strings, same length as input.
+        List of Hebrew strings (translated), or original sentences if translation unavailable.
     """
     if not sentences:
         return sentences
 
-    # 1. Try claude CLI (no extra API key required)
-    try:
-        result = _translate_via_claude_cli(sentences)
-        logger.debug("translate_to_hebrew: translated %d sentences via claude CLI.", len(sentences))
-        return result
-    except Exception as e:
-        logger.debug("claude CLI translation unavailable: %s — trying anthropic SDK.", e)
-
-    # 2. Try anthropic SDK (requires ANTHROPIC_API_KEY)
+    # Try anthropic SDK (requires ANTHROPIC_API_KEY as a Windows system env var)
     try:
         result = _translate_via_sdk(sentences)
         logger.debug("translate_to_hebrew: translated %d sentences via anthropic SDK.", len(sentences))
         return result
     except ImportError:
         logger.warning(
-            "Hebrew translation failed: claude CLI unavailable and anthropic package not installed. "
+            "Hebrew translation unavailable: anthropic package not installed. "
             "Install with: pip install anthropic"
+        )
+    except RuntimeError as e:
+        # ANTHROPIC_API_KEY not set — log once with instructions, then fail-open silently
+        logger.warning(
+            "Hebrew translation unavailable: %s. "
+            "Set ANTHROPIC_API_KEY as a Windows system environment variable "
+            "(Control Panel → System → Advanced → Environment Variables) "
+            "so pythonw.exe can access it.",
+            e,
         )
     except Exception as e:
         logger.warning("Hebrew translation failed: %s — returning original sentences.", e)
 
-    # 3. Fail-open: return original text, optionally notify via tray
+    # Fail-open: return original text, optionally notify via tray
     if icon is not None:
         try:
-            icon.notify("Hebrew translation failed — using original text.", "AgentTalk")
+            icon.notify("Hebrew translation unavailable — set ANTHROPIC_API_KEY.", "AgentTalk")
         except Exception:
             logger.debug("icon.notify() failed during translate_to_hebrew.", exc_info=True)
     return sentences
