@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-02-28T00:00:00Z"
+last_updated: "2026-03-01T00:00:00Z"
 progress:
   total_phases: 6
   completed_phases: 6
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-02-26)
 Phase: 5 of 6 (Configuration, Voice/Model Switching, and Slash Commands) — IN PROGRESS
 Plan: 1 of 3 complete (05-01 done)
 Status: Wave 1 complete — save_config, /config + /stop endpoints, STATE engine keys added
-Last activity: 2026-02-28 - Completed quick task 6: AgentTalk latency optimization (sentence-level TTS streaming + PostToolUse hook)
+Last activity: 2026-03-01 - Completed quick task 8: Hebrew TTS support via HebrewPiperEngine (PiperStream Docker) and LightBlueTTSEngine (local inference)
 
 Progress: [████░░░░░░] 33%
 
@@ -81,6 +81,9 @@ Recent decisions affecting current work:
 - [quick-6]: TTS_QUEUE items changed from list[str] batches to individual str sentences — duck/unduck per sentence accepted as correctness trade-off for immediate first-sentence playback
 - [quick-6]: _is_substantial threshold set at 80 chars + terminal punctuation to prevent speaking one-liners like "Reading file..." during rapid tool use
 - [quick-7]: Inject '. ' at paragraph breaks via regex step 9a before whitespace collapse so pysbd receives clean sentence boundaries from double-newline-separated Claude output
+- [quick-8]: HebrewPiperEngine uses /synthesize/audio (complete WAV) not /synthesize/stream — simpler parsing with wave module, no streaming complexity
+- [quick-8]: LightBlueTTSEngine defers all heavy imports (torch, onnxruntime) to __init__ — module imports clean without deps; speed changes trigger engine reload (logged as warning)
+- [quick-8]: /hebrew-voices scans lightblue_voice_path parent dir for *.json — dynamic discovery, no hardcoded voice list
 
 ### Pending Todos
 
@@ -102,9 +105,10 @@ Recent decisions affecting current work:
 | 5 | Audit preprocessor emotional-punctuation: 11 regression tests + preservation docstring + bold/italic regex fix | 2026-02-28 | 258d815 | Verified | [5-audit-text-filter-py-to-check-if-emotion](.planning/quick/5-audit-text-filter-py-to-check-if-emotion/) |
 | 6 | Sentence-level TTS streaming + PostToolUse early-speaking hook | 2026-02-28 | 33c20ed | Verified | [6-implement-agenttalk-latency-optimization](.planning/quick/6-implement-agenttalk-latency-optimization/) |
 | 7 | Paragraph-break sentence injection: step 9a regex in strip_markdown for pysbd sentence splitting | 2026-02-28 | a7dc694 | Verified | [7-fix-agenttalk-sentence-detection-so-it-p](.planning/quick/7-fix-agenttalk-sentence-detection-so-it-p/) |
+| 8 | Hebrew TTS: HebrewPiperEngine (PiperStream Docker) + LightBlueTTSEngine (local) + /hebrew-voices endpoint + docs | 2026-03-01 | ece02cf | Verified | [8-i-ve-found-two-interesting-enhancements-](.planning/quick/8-i-ve-found-two-interesting-enhancements-/) |
 
 ## Session Continuity
 
-Last session: 2026-02-28
-Last activity: 2026-02-28 - Completed quick task 7 (verified): Paragraph-break sentence injection in strip_markdown
+Last session: 2026-03-01
+Last activity: 2026-03-01 - Completed quick task 8 (verified): Hebrew TTS support via PiperStream and Light-BlueTTS
 Resume file: None
