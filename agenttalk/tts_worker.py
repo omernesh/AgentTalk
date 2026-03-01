@@ -332,11 +332,21 @@ def _tts_worker(kokoro_engine) -> None:
             ducked = True
 
             logging.debug("TTS: synthesizing %r", sentence[:60])
+            model = STATE.get("model", "kokoro")
+            if model == "hebrewpiper":
+                tts_voice = STATE.get("hebrewpiper_voice", "female")
+                tts_lang = "he"
+            elif model == "lightblue":
+                tts_voice = STATE.get("lightblue_voice_path")
+                tts_lang = "he"
+            else:
+                tts_voice = STATE["voice"]
+                tts_lang = "en-us"
             samples, rate = engine.create(
                 sentence,
-                voice=STATE["voice"],
+                voice=tts_voice,
                 speed=STATE["speed"],
-                lang="en-us",
+                lang=tts_lang,
             )
             scaled = np.clip(samples * STATE["volume"], -1.0, 1.0)
             sd.play(scaled, samplerate=rate)

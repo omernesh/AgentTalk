@@ -90,6 +90,15 @@ class HebrewPiperEngine:
                 f"PiperStream not reachable at {self._host}. "
                 "Start Docker: cd PiperStream && docker compose up"
             )
+        except requests.exceptions.Timeout:
+            raise RuntimeError(
+                f"PiperStream request timed out after 30 s (host={self._host}). "
+                "The service may be overloaded or the Docker container is not responding."
+            )
+        except requests.exceptions.RequestException as exc:
+            raise RuntimeError(
+                f"PiperStream request failed: {exc}"
+            ) from exc
 
         if r.status_code != 200:
             raise RuntimeError(
@@ -98,10 +107,22 @@ class HebrewPiperEngine:
 
         # Parse WAV bytes from the response body
         buf = io.BytesIO(r.content)
-        with wave.open(buf, "rb") as wf:
+        try:
+            wf = wave.open(buf, "rb")
+        except wave.Error as exc:
+            raise RuntimeError(
+                f"PiperStream returned invalid WAV data: {exc}"
+            ) from exc
+        with wf:
             if wf.getnframes() == 0:
                 raise RuntimeError(
                     f"PiperStream synthesized zero frames for: {text[:60]!r}"
+                )
+            sampwidth = wf.getsampwidth()
+            if sampwidth != 2:
+                raise RuntimeError(
+                    f"PiperStream returned unexpected sample width {sampwidth} bytes "
+                    f"(expected 2 for int16 PCM)."
                 )
             raw_pcm = wf.readframes(wf.getnframes())
             sample_rate = wf.getframerate()

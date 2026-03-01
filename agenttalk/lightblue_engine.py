@@ -119,13 +119,8 @@ class LightBlueTTSEngine:
                 self._speed,
                 speed,
             )
-            try:
-                from hebrew_inference_helper import HebrewTTS, TTSConfig
-            except ImportError:
-                raise ImportError(
-                    "Light-BlueTTS not installed. Install deps: pip install onnxruntime phonikud phonikud-onnx soundfile torch torchaudio\n"
-                    "Then clone https://github.com/maxmelichov/Light-BlueTTS and add it to PYTHONPATH."
-                )
+            # Import cannot fail here — __init__ already verified the library is present.
+            from hebrew_inference_helper import HebrewTTS, TTSConfig
             config = TTSConfig(
                 onnx_dir=self._onnx_dir,
                 phonikud_path=self._phonikud_path,
