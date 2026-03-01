@@ -29,6 +29,8 @@ speed changes between calls, the engine is reloaded with the new TTSConfig
 """
 import logging
 
+import numpy as np
+
 
 class LightBlueTTSEngine:
     """
@@ -88,14 +90,14 @@ class LightBlueTTSEngine:
         voice: str | None = None,
         speed: float = 1.0,
         lang: str = "he",
-    ) -> tuple:
+    ) -> tuple[np.ndarray, int]:
         """
         Synthesize Hebrew text to audio samples using Light-BlueTTS.
 
         Args:
             text:  Hebrew text to synthesize.
-            voice: Absolute path to a voices/*.json style file. If None, defaults
-                   to "voices/female1.json" (relative path — user should pass absolute).
+            voice: Absolute path to a voices/*.json style file. Required — pass
+                   the absolute path via POST /config lightblue_voice_path.
             speed: Speech speed multiplier. NOTE: speed is baked into TTSConfig,
                    so changing speed requires engine reload (logged as a warning).
                    Changing speed frequently is not recommended.
@@ -107,13 +109,20 @@ class LightBlueTTSEngine:
                 44100: int — Light-BlueTTS always outputs at 44100 Hz
 
         Raises:
+            RuntimeError: If voice is None (lightblue_voice_path not configured).
+            RuntimeError: If inference fails (bad voice file, model error, OOM, etc.).
             ImportError: If Light-BlueTTS is not installed (raised at __init__ time,
                          not here — but documented for completeness).
         """
-        effective_voice = voice if voice is not None else "voices/female1.json"
+        if voice is None:
+            raise RuntimeError(
+                "LightBlueTTS voice path not configured. "
+                "POST /config with lightblue_voice_path set to an absolute path "
+                "to a voices/*.json file (e.g. C:/Light-BlueTTS/voices/female1.json)."
+            )
 
         # Speed is baked into TTSConfig — reload if speed changes
-        if speed != self._speed:
+        if abs(speed - self._speed) > 1e-9:
             logging.warning(
                 "LightBlueTTSEngine: speed change from %.2f to %.2f requires engine reload.",
                 self._speed,
@@ -127,9 +136,21 @@ class LightBlueTTSEngine:
                 speed=speed,
                 use_gpu=self._use_gpu,
             )
-            self._tts = HebrewTTS(config)
+            try:
+                self._tts = HebrewTTS(config)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"LightBlueTTSEngine: failed to reload with speed={speed}: {exc}"
+                ) from exc
             self._speed = speed
 
-        wav = self._tts.infer(text, style_json_path=effective_voice)
+        try:
+            wav = self._tts.infer(text, style_json_path=voice)
+        except Exception as exc:
+            raise RuntimeError(
+                f"LightBlueTTS inference failed for text {text[:60]!r} "
+                f"(voice={voice!r}): {exc}"
+            ) from exc
+
         # Light-BlueTTS always outputs 44100 Hz float32 ndarray
         return wav, 44100

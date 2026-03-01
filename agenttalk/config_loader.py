@@ -5,7 +5,7 @@ Provides load_config() which returns the persisted settings dict.
 Returns {} if the file is absent or malformed — never raises.
 
 Phase 4 consumers: service.py reads pre_cue_path and post_cue_path at startup.
-Phase 5: save_config() added for runtime persistence of all 7 CFG-02 settings fields.
+Phase 5: save_config() added for runtime persistence of CFG-02 settings fields.
 Quick task 3: _config_dir() made cross-platform (Windows/macOS/Linux).
 """
 import json
@@ -43,13 +43,14 @@ _CONFIG_LOCK = threading.Lock()
 
 def load_config() -> dict:
     """
-    Read %APPDATA%/AgentTalk/config.json and return its contents as a dict.
+    Read config.json from the platform config directory and return its contents as a dict.
 
     Returns {} if:
     - The file does not exist (first run, no config yet).
     - The file contains invalid JSON (corrupted config).
 
-    Never raises — config loading is best-effort. Logs a warning on parse error.
+    Never raises — config loading is best-effort. Logs a warning on parse error,
+    ERROR on permission denied (persistent misconfiguration that won't self-heal).
 
     CUE-04: Audio cue paths are configurable via config.json.
     """
@@ -65,6 +66,13 @@ def load_config() -> dict:
             return {}
         logging.debug("Loaded config from %s: %s", path, list(cfg.keys()))
         return cfg
+    except PermissionError:
+        logging.error(
+            "Permission denied reading config at %s — all settings reset to defaults. "
+            "Check file permissions on the AgentTalk config directory.",
+            path, exc_info=True,
+        )
+        return {}
     except Exception:
         logging.warning(
             "Failed to load config from %s — using defaults.", path, exc_info=True
@@ -82,8 +90,8 @@ def save_config(state: dict) -> None:
     Thread-safe via _CONFIG_LOCK — both the FastAPI handler thread and
     the tts_worker thread could call this concurrently.
 
-    CFG-01: Writes to %APPDATA%/AgentTalk/config.json (no admin rights).
-    CFG-02: Persists all 14 settings fields.
+    CFG-01: Writes to the platform config directory (no admin rights required).
+    CFG-02: Persists all runtime settings fields.
     """
     path = _config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -107,6 +115,7 @@ def save_config(state: dict) -> None:
 
     tmp = path.with_suffix(".json.tmp")
     with _CONFIG_LOCK:
+        tmp.unlink(missing_ok=True)  # remove any orphan from a previous interrupted save
         try:
             tmp.write_text(json.dumps(persisted, indent=2), encoding="utf-8")
             tmp.replace(path)  # os.replace() — atomic on Windows

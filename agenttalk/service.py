@@ -5,17 +5,16 @@ Launch via: pythonw.exe agenttalk/service.py
 Console suppression is handled by the pythonw.exe interpreter itself.
 No special subprocess flags are needed for the service process itself.
 """
-import os
-import sys
-import logging
 import atexit
+import logging
+import os
+import queue
+import sys
 import threading
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
-
-import queue
-import time
 
 import psutil
 import sounddevice as sd
@@ -181,7 +180,8 @@ def _configure_audio() -> None:
         )
     except (AttributeError, TypeError):
         logging.error(
-            "Unexpected type error querying audio host API — possible sounddevice API change.",
+            "Unexpected type error querying audio host API — possible sounddevice API change. "
+            "WASAPI auto_convert NOT applied; audio playback may fail on WASAPI devices.",
             exc_info=True,
         )
 
@@ -304,8 +304,6 @@ async def _lifespan(app: FastAPI):
     try:
         _configure_audio()
         _kokoro_engine = _load_and_warmup_kokoro()
-        is_ready = True
-        logging.info("Service ready. /health will return 200.")
 
         # Phase 4: Start TTS worker AFTER Kokoro loads, passing the tray icon reference.
         # _tray_icon is set by _setup() before _start_http_server() is called, so it is
@@ -313,23 +311,37 @@ async def _lifespan(app: FastAPI):
         start_tts_worker(_kokoro_engine, icon=_tray_icon)
         logging.info("TTS worker started with icon reference.")
 
-        # Startup audio: confirms full pipeline is working.
-        logging.info("Running startup audio proof: synthesizing 'AgentTalk is running.'")
-        samples, rate = _kokoro_engine.create(
-            "AgentTalk is running.",
-            voice="af_heart",
-            speed=1.0,
-            lang="en-us",
-        )
-        play_audio(samples, rate)
-        logging.info("Startup audio playback complete.")
+        # Mark ready only after worker is running so /health returns 200 iff fully operational.
+        is_ready = True
+        logging.info("Service ready. /health will return 200.")
 
     except FileNotFoundError:
         logging.error(
-            "Model files missing — service will start but /health returns 503 until models are present."
+            "Model files missing — service will start but /health returns 503 until models are present.",
+            exc_info=True,
         )
     except Exception:
         logging.exception("Error during Kokoro startup — service degraded; /health returns 503.")
+
+    # Startup audio: confirms full pipeline is working. Runs even if is_ready is True.
+    # Failure here is non-fatal — worker is running, service accepts requests normally.
+    if is_ready:
+        try:
+            logging.info("Running startup audio proof: synthesizing 'AgentTalk is running.'")
+            samples, rate = _kokoro_engine.create(
+                "AgentTalk is running.",
+                voice="af_heart",
+                speed=1.0,
+                lang="en-us",
+            )
+            play_audio(samples, rate)
+            logging.info("Startup audio playback complete.")
+        except Exception:
+            logging.warning(
+                "Startup audio playback failed — service is running but audio device "
+                "may be misconfigured.",
+                exc_info=True,
+            )
 
     yield  # Service runs here
 
@@ -338,10 +350,12 @@ async def _lifespan(app: FastAPI):
 
 
 _DESCRIPTION = """
-AgentTalk is a local Windows text-to-speech service supporting two offline TTS engines:
+AgentTalk is a local text-to-speech service supporting four TTS engines:
 
-- **Kokoro ONNX** ([kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx)) — default engine, high quality, 11 voices
-- **Piper TTS** ([piper-tts](https://github.com/OHF-voice/piper1-gpl)) — alternative engine, switchable at runtime, multiple downloadable voice models
+- **Kokoro ONNX** ([kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx)) — default engine, high quality, 11 English voices
+- **Piper TTS** ([piper-tts](https://github.com/OHF-voice/piper1-gpl)) — alternative English engine, switchable at runtime, multiple downloadable voice models
+- **HebrewPiper** ([PiperStream](https://github.com/maxmelichov/PiperStream)) — Hebrew TTS via Docker REST API, two voices (male/female)
+- **Light-BlueTTS** ([Light-BlueTTS](https://github.com/maxmelichov/Light-BlueTTS)) — Hebrew TTS via local ONNX inference, no Docker required
 
 It accepts plain text or Markdown, preprocesses it into speakable sentences, and plays audio through your default output device.
 
@@ -364,10 +378,20 @@ curl -X POST http://localhost:5050/speak \\
 
 ## Engine switching
 
-Switch between Kokoro and Piper at runtime via `POST /config`:
+Switch engines at runtime via `POST /config`:
 
 ```bash
-# Switch to Piper
+# Switch to HebrewPiper (Docker required)
+curl -X POST http://localhost:5050/config \\
+     -H "Content-Type: application/json" \\
+     -d '{"model": "hebrewpiper", "hebrewpiper_host": "http://localhost:8000"}'
+
+# Switch to Light-BlueTTS (local inference)
+curl -X POST http://localhost:5050/config \\
+     -H "Content-Type: application/json" \\
+     -d '{"model": "lightblue", "lightblue_onnx_dir": "C:/Light-BlueTTS/onnx_models", "lightblue_voice_path": "C:/Light-BlueTTS/voices/female1.json"}'
+
+# Switch to Piper (English)
 curl -X POST http://localhost:5050/config \\
      -H "Content-Type: application/json" \\
      -d '{"model": "piper", "piper_model_path": "C:/path/to/en_US-lessac-medium.onnx"}'
@@ -437,14 +461,19 @@ def list_voices():
 )
 def get_config():
     """Returns the full current runtime state:
-    - `voice`: active Kokoro voice ID (used when `model` is `kokoro`)
-    - `model`: active TTS engine — `"kokoro"` or `"piper"`
+    - `voice`: active Kokoro voice ID (used when `model` is `"kokoro"`)
+    - `model`: active TTS engine — `"kokoro"`, `"piper"`, `"lightblue"`, or `"hebrewpiper"`
     - `speed`: speech speed multiplier (0.5–2.0)
     - `volume`: playback volume (0.0–1.0)
     - `muted`: when true, synthesis is skipped entirely
     - `pre_cue_path` / `post_cue_path`: optional WAV paths played before/after each utterance
-    - `piper_model_path`: absolute path to the active Piper ONNX model (used when `model` is `piper`)
+    - `piper_model_path`: absolute path to the active Piper ONNX model (used when `model` is `"piper"`)
     - `speech_mode`: `"auto"` (speak every reply) or `"semi-auto"` (only speak when /speak is invoked)
+    - `hebrewpiper_host`: PiperStream Docker service URL (used when `model` is `"hebrewpiper"`)
+    - `hebrewpiper_voice`: PiperStream voice — `"male"` or `"female"`
+    - `lightblue_onnx_dir`: absolute path to Light-BlueTTS onnx_models/ directory
+    - `lightblue_phonikud_path`: absolute path to phonikud-1.0.onnx
+    - `lightblue_voice_path`: absolute path to a voices/*.json style file
     """
     return JSONResponse({
         "voice":                  STATE.get("voice"),
@@ -564,7 +593,7 @@ async def speak(req: SpeakRequest):
         try:
             TTS_QUEUE.put_nowait(_CueItem(pre_cue))
         except queue.Full:
-            pass  # queue full — skip cue rather than block
+            logging.debug("Pre-cue skipped — TTS queue full.")
 
     queued = 0
     dropped = 0
@@ -592,7 +621,7 @@ async def speak(req: SpeakRequest):
         try:
             TTS_QUEUE.put_nowait(_CueItem(post_cue))
         except queue.Full:
-            pass  # queue full — skip cue rather than block
+            logging.debug("Post-cue skipped — TTS queue full.")
 
     return JSONResponse(
         {"status": "queued", "sentences": queued, "dropped": dropped},

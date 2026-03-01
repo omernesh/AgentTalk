@@ -21,9 +21,11 @@ Speed mapping: length_scale = 1.0 / speed (same as PiperEngine).
 """
 import io
 import logging
+import struct
 import wave
 
 import numpy as np
+import requests
 
 
 class HebrewPiperEngine:
@@ -74,9 +76,8 @@ class HebrewPiperEngine:
         Raises:
             RuntimeError: If PiperStream is not reachable (Docker not running).
             RuntimeError: If PiperStream returns a non-200 HTTP response.
+            RuntimeError: If PiperStream returns malformed WAV data.
         """
-        import requests  # deferred — already in project deps
-
         effective_voice = voice if voice is not None else self._voice
         # Same speed-to-length_scale mapping as PiperEngine
         length_scale = 1.0 / max(float(speed), 0.1)
@@ -84,7 +85,7 @@ class HebrewPiperEngine:
 
         url = f"{self._host}/synthesize/audio"
         try:
-            r = requests.post(url, json=payload, timeout=30)
+            resp = requests.post(url, json=payload, timeout=30)
         except requests.exceptions.ConnectionError:
             raise RuntimeError(
                 f"PiperStream not reachable at {self._host}. "
@@ -97,35 +98,36 @@ class HebrewPiperEngine:
             )
         except requests.exceptions.RequestException as exc:
             raise RuntimeError(
-                f"PiperStream request failed: {exc}"
+                f"PiperStream request failed ({type(exc).__name__}): {exc}"
             ) from exc
 
-        if r.status_code != 200:
+        if resp.status_code != 200:
             raise RuntimeError(
-                f"PiperStream /synthesize/audio returned {r.status_code}: {r.text[:200]}"
+                f"PiperStream /synthesize/audio returned {resp.status_code}: {resp.text[:200]}"
             )
 
         # Parse WAV bytes from the response body
-        buf = io.BytesIO(r.content)
+        buf = io.BytesIO(resp.content)
         try:
-            wf = wave.open(buf, "rb")
-        except wave.Error as exc:
+            with wave.open(buf, "rb") as wf:
+                if wf.getnframes() == 0:
+                    raise RuntimeError(
+                        f"PiperStream synthesized zero frames for: {text[:60]!r}"
+                    )
+                sampwidth = wf.getsampwidth()
+                if sampwidth != 2:
+                    raise RuntimeError(
+                        f"PiperStream returned unexpected sample width {sampwidth} bytes "
+                        f"(expected 2 for int16 PCM)."
+                    )
+                raw_pcm = wf.readframes(wf.getnframes())
+                sample_rate = wf.getframerate()
+        except RuntimeError:
+            raise  # Re-raise our own validation errors unchanged
+        except (wave.Error, EOFError, struct.error) as exc:
             raise RuntimeError(
-                f"PiperStream returned invalid WAV data: {exc}"
+                f"PiperStream returned malformed WAV data ({type(exc).__name__}): {exc}"
             ) from exc
-        with wf:
-            if wf.getnframes() == 0:
-                raise RuntimeError(
-                    f"PiperStream synthesized zero frames for: {text[:60]!r}"
-                )
-            sampwidth = wf.getsampwidth()
-            if sampwidth != 2:
-                raise RuntimeError(
-                    f"PiperStream returned unexpected sample width {sampwidth} bytes "
-                    f"(expected 2 for int16 PCM)."
-                )
-            raw_pcm = wf.readframes(wf.getnframes())
-            sample_rate = wf.getframerate()
 
         # Convert int16 PCM -> float32 in [-1.0, 1.0]
         samples = np.frombuffer(raw_pcm, dtype=np.int16).astype(np.float32) / 32768.0

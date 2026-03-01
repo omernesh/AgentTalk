@@ -111,12 +111,12 @@ def _notify_if_degraded(msg: str) -> None:
         try:
             _icon_ref.notify(msg)
         except Exception:
-            pass
+            logging.warning("Tray notification failed (non-fatal).", exc_info=True)
 
 # Lazy-loaded Piper engine instance — None until STATE['model'] first switches to 'piper'.
 # _get_active_engine() creates it on demand and reloads it when piper_model_path changes.
 _piper_engine = None
-_piper_loaded_path: str | None = None  # tracks which .onnx is currently loaded
+_piper_loaded_key: str | None = None  # tracks which .onnx is currently loaded
 
 # Lazy-loaded Hebrew engine instances — None until model switches to the respective engine.
 _hebrewpiper_engine = None
@@ -129,7 +129,7 @@ _lightblue_loaded_key: str | None = None  # tracks onnx_dir+phonikud_path combo
 # Engine dispatcher
 # ---------------------------------------------------------------------------
 
-def _get_active_engine(kokoro):
+def _get_active_engine(kokoro: object) -> object:
     """
     Return the active TTS engine based on STATE['model'].
 
@@ -150,7 +150,7 @@ def _get_active_engine(kokoro):
     TTS-04: Piper TTS switchable at runtime via /agenttalk:model without service restart.
     CFG-03: STATE['model'] is updated by POST /config; next synthesis call uses new engine.
     """
-    global _piper_engine, _piper_loaded_path
+    global _piper_engine, _piper_loaded_key
     global _hebrewpiper_engine, _hebrewpiper_loaded_key
     global _lightblue_engine, _lightblue_loaded_key
     model = STATE.get("model", "kokoro")
@@ -162,11 +162,11 @@ def _get_active_engine(kokoro):
                 "Run 'agenttalk setup --piper' to download a model, "
                 "or set piper_model_path in config.json."
             )
-        if _piper_engine is None or _piper_loaded_path != piper_path:
+        if _piper_engine is None or _piper_loaded_key != piper_path:
             from agenttalk.piper_engine import PiperEngine  # deferred — lazy load
             logging.info("Initialising Piper engine from %s", piper_path)
             _piper_engine = PiperEngine(piper_path)
-            _piper_loaded_path = piper_path
+            _piper_loaded_key = piper_path
         return _piper_engine
 
     elif model == "hebrewpiper":
@@ -318,8 +318,10 @@ def _tts_worker(kokoro_engine) -> None:
         try:
             if STATE["muted"]:
                 logging.debug("TTS: muted - skipping sentence.")
+                _consecutive_failures = 0  # muted is not a failure; reset streak
                 continue
             if not sentence.strip():
+                _consecutive_failures = 0  # blank sentence is not a failure; reset streak
                 continue
 
             STATE["speaking"] = True
@@ -355,7 +357,7 @@ def _tts_worker(kokoro_engine) -> None:
             _ducker.unduck()
             ducked = False
 
-        except (RuntimeError, FileNotFoundError, ImportError) as config_err:
+        except (RuntimeError, FileNotFoundError, ImportError, OSError, ValueError) as config_err:
             # Engine misconfiguration — actionable message, notify user after threshold.
             _consecutive_failures += 1
             logging.error(
