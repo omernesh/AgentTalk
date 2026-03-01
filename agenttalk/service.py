@@ -26,13 +26,11 @@ from pydantic import BaseModel, Field
 import pystray
 
 from agenttalk.tts_worker import TTS_QUEUE, STATE, start_tts_worker, _ducker, _CueItem
-from agenttalk.tray import build_tray_icon
+from agenttalk.tray import build_tray_icon, HEBREW_VOICE_MAP
 from agenttalk.config_loader import load_config, save_config, _config_dir
 from agenttalk.preprocessor import preprocess
 from agenttalk.translator import is_hebrew, translate_to_hebrew
 
-# Hebrew voice namespace: maps human names to LightBlueTTS voice filenames
-HEBREW_VOICE_MAP = {"einav": "female1", "yuval": "male1"}
 
 # ---------------------------------------------------------------------------
 # Platform-aware paths (cross-platform via _config_dir())

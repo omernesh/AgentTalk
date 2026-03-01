@@ -214,7 +214,7 @@ def build_tray_icon(
                     radio=True,
                 )
         else:
-            # Kokoro mode — static list
+            # Non-piper mode — show Kokoro voices (and Hebrew voices if configured)
             for voice in KOKORO_VOICES:
                 yield pystray.MenuItem(
                     voice,
