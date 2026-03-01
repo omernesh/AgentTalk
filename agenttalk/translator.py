@@ -6,10 +6,16 @@ and the input text is not already Hebrew.
 
 Used in service.py /speak handler after preprocess(), before queuing.
 Hook-first (user_prompt_hook.py) is preferred — this is the fallback.
+
+Translation strategy (tried in order):
+1. claude CLI — uses the user's existing Claude Code subscription, no extra API key needed.
+2. anthropic SDK — requires ANTHROPIC_API_KEY in the service environment (optional).
+3. Fail-open — returns original text unchanged, logs the reason.
 """
 import json
 import logging
-import os
+import shutil
+import subprocess
 import unicodedata
 
 logger = logging.getLogger(__name__)
@@ -20,7 +26,8 @@ _HEB_END = 0x05FF
 
 _TRANSLATION_MODEL = "claude-haiku-4-5"
 
-_SYSTEM_PROMPT = """\
+# Single prompt used by both backends — includes instructions + expects JSON array out.
+_PROMPT_TEMPLATE = """\
 You are a Hebrew translator for a text-to-speech system.
 Translate each sentence to Hebrew. Rules:
 - Technical terms with no natural Hebrew equivalent: transliterate phonetically
@@ -31,8 +38,10 @@ Translate each sentence to Hebrew. Rules:
    running→רץ, complete→הושלם, failed→נכשל)
 - Code, commands, file paths, URLs, variable names: keep in English exactly
 - Proper nouns and product names: transliterate
-Return a JSON array of Hebrew strings, same length as input, no extra text.\
-"""
+Return ONLY a JSON array of Hebrew strings, same length as input, no other text.
+
+Sentences:
+{sentences_json}"""
 
 
 def is_hebrew(text: str) -> bool:
@@ -49,13 +58,95 @@ def is_hebrew(text: str) -> bool:
     return (hebrew / total) > 0.40
 
 
+def _parse_json_array(raw: str, expected_len: int) -> list[str]:
+    """Extract and validate a JSON string array from model output."""
+    # Strip markdown code fences if present
+    text = raw.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+
+    # Find outermost JSON array in case of preamble
+    start = text.find("[")
+    end = text.rfind("]")
+    if start == -1 or end == -1:
+        raise ValueError(f"No JSON array found in output: {text[:120]!r}")
+
+    result = json.loads(text[start : end + 1])
+    if not isinstance(result, list) or len(result) != expected_len:
+        raise ValueError(
+            f"Expected list[{expected_len}], "
+            f"got {type(result).__name__}[{len(result) if isinstance(result, list) else '?'}]"
+        )
+    if not all(isinstance(i, str) for i in result):
+        raise ValueError("Translation response contains non-string items")
+    return result
+
+
+def _translate_via_claude_cli(sentences: list[str]) -> list[str]:
+    """
+    Translate using the installed `claude` CLI.
+
+    Uses the user's existing Claude Code subscription — no ANTHROPIC_API_KEY needed.
+    Raises RuntimeError/ValueError on any failure so the caller can fall through.
+    """
+    claude_exe = shutil.which("claude")
+    if not claude_exe:
+        raise RuntimeError("claude CLI not found on PATH")
+
+    prompt = _PROMPT_TEMPLATE.format(
+        sentences_json=json.dumps(sentences, ensure_ascii=False)
+    )
+    result = subprocess.run(
+        [claude_exe, "--print", "--output-format", "text", prompt],
+        capture_output=True,
+        timeout=60,
+    )
+    if result.returncode != 0:
+        stderr = result.stderr.decode("utf-8", errors="replace")
+        raise RuntimeError(f"claude CLI exited {result.returncode}: {stderr[:200]}")
+
+    raw = result.stdout.decode("utf-8", errors="replace")
+    return _parse_json_array(raw, len(sentences))
+
+
+def _translate_via_sdk(sentences: list[str]) -> list[str]:
+    """
+    Translate using the anthropic Python SDK.
+
+    Requires ANTHROPIC_API_KEY in the environment.
+    Raises RuntimeError/ImportError/ValueError on any failure.
+    """
+    import os
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY not set")
+
+    import anthropic
+
+    client = anthropic.Anthropic(api_key=api_key)
+    prompt = _PROMPT_TEMPLATE.format(
+        sentences_json=json.dumps(sentences, ensure_ascii=False)
+    )
+    response = client.messages.create(
+        model=_TRANSLATION_MODEL,
+        max_tokens=4096,
+        temperature=0,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    if not response.content:
+        raise ValueError("Empty response content from Claude API")
+    return _parse_json_array(response.content[0].text, len(sentences))
+
+
 def translate_to_hebrew(sentences: list[str], icon: "pystray.Icon | None" = None) -> list[str]:
     """
-    Translate a list of sentences to Hebrew using Claude Haiku.
+    Translate a list of sentences to Hebrew.
 
-    Sends all sentences in a single API call (JSON array in/out).
-    On any failure, logs the error, optionally shows tray notification,
-    and returns the original sentences unchanged (fail-open).
+    Tries the claude CLI first (uses user's Claude Code subscription), then
+    falls back to the anthropic SDK (requires ANTHROPIC_API_KEY). On any
+    failure, logs the reason and returns the original sentences unchanged (fail-open).
 
     Args:
         sentences: List of English (or mixed) sentences.
@@ -67,47 +158,31 @@ def translate_to_hebrew(sentences: list[str], icon: "pystray.Icon | None" = None
     if not sentences:
         return sentences
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        logger.warning("ANTHROPIC_API_KEY not set — Hebrew translation skipped, using original text.")
-        return sentences
-
+    # 1. Try claude CLI (no extra API key required)
     try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
-        user_content = json.dumps(sentences, ensure_ascii=False)
-        response = client.messages.create(
-            model=_TRANSLATION_MODEL,
-            max_tokens=4096,
-            temperature=0,
-            system=_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_content}],
-        )
-        if not response.content:
-            raise ValueError("Empty response content from Claude API")
-        raw = response.content[0].text.strip()
-        result = json.loads(raw)
-        if not isinstance(result, list) or len(result) != len(sentences):
-            raise ValueError(
-                f"Unexpected response shape: expected list[{len(sentences)}], "
-                f"got {type(result).__name__}[{len(result) if isinstance(result, list) else '?'}]"
-            )
-        if not all(isinstance(i, str) for i in result):
-            raise ValueError("Translation response contains non-string items")
+        result = _translate_via_claude_cli(sentences)
+        logger.debug("translate_to_hebrew: translated %d sentences via claude CLI.", len(sentences))
+        return result
+    except Exception as e:
+        logger.debug("claude CLI translation unavailable: %s — trying anthropic SDK.", e)
+
+    # 2. Try anthropic SDK (requires ANTHROPIC_API_KEY)
+    try:
+        result = _translate_via_sdk(sentences)
+        logger.debug("translate_to_hebrew: translated %d sentences via anthropic SDK.", len(sentences))
         return result
     except ImportError:
-        logger.error(
-            "anthropic package not installed — Hebrew translation skipped. "
+        logger.warning(
+            "Hebrew translation failed: claude CLI unavailable and anthropic package not installed. "
             "Install with: pip install anthropic"
         )
-        return sentences
-    except Exception:
-        logger.exception("translate_to_hebrew() failed — returning original sentences.")
-        if icon is not None:
-            try:
-                icon.notify("Hebrew translation failed — using original text.", "AgentTalk")
-            except Exception:
-                logger.debug(
-                    "icon.notify() failed during translate_to_hebrew error handling.", exc_info=True
-                )
-        return sentences
+    except Exception as e:
+        logger.warning("Hebrew translation failed: %s — returning original sentences.", e)
+
+    # 3. Fail-open: return original text, optionally notify via tray
+    if icon is not None:
+        try:
+            icon.notify("Hebrew translation failed — using original text.", "AgentTalk")
+        except Exception:
+            logger.debug("icon.notify() failed during translate_to_hebrew.", exc_info=True)
+    return sentences

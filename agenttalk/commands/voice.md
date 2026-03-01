@@ -89,5 +89,8 @@ Note: switching Piper voice triggers an engine reload on the next spoken sentenc
 
 ---
 
-If `"status": "ok"` in the response, confirm: "Voice switched to [name]."
+If `"status": "ok"` in the response:
+- **Hebrew voice (he_*):** confirm in Hebrew — e.g. "הקול הוחלף ל-אינב (עברית). המנוע הוגדר ל-LightBlueTTS."
+- **Any other voice:** confirm in English — "Voice switched to [name]."
+
 If connection refused: "AgentTalk service is not running. Start it with /agenttalk:start."
