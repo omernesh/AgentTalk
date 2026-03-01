@@ -81,9 +81,14 @@ STATE: dict = {
     "speaking": False,          # True while TTS is synthesizing/playing (TRAY-03)
     "pre_cue_path": None,       # Path to WAV file played before each utterance (CUE-01, CUE-03)
     "post_cue_path": None,      # Path to WAV file played after each utterance (CUE-02, CUE-03)
-    "model": "kokoro",          # TTS engine: "kokoro" or "piper" (TTS-04)
+    "model": "kokoro",          # TTS engine: "kokoro", "piper", "lightblue", or "hebrewpiper" (TTS-04)
     "piper_model_path": None,   # Absolute path to Piper ONNX model file (TTS-04)
     "speech_mode": "auto",      # "auto" (speak every reply) or "semi-auto" (only on /speak)
+    "hebrewpiper_host": "http://localhost:8000",  # PiperStream Docker service URL
+    "hebrewpiper_voice": "female",                # "male" or "female"
+    "lightblue_onnx_dir": None,                   # Absolute path to onnx_models/ dir
+    "lightblue_phonikud_path": None,              # Absolute path to phonikud-1.0.onnx
+    "lightblue_voice_path": None,                 # Absolute path to a voices/*.json style file
 }
 
 # Module-level AudioDucker instance — shared between worker and atexit handler.
@@ -113,6 +118,12 @@ def _notify_if_degraded(msg: str) -> None:
 _piper_engine = None
 _piper_loaded_path: str | None = None  # tracks which .onnx is currently loaded
 
+# Lazy-loaded Hebrew engine instances — None until model switches to the respective engine.
+_hebrewpiper_engine = None
+_hebrewpiper_loaded_key: str | None = None  # tracks host+voice combo
+_lightblue_engine = None
+_lightblue_loaded_key: str | None = None  # tracks onnx_dir+phonikud_path combo
+
 
 # ---------------------------------------------------------------------------
 # Engine dispatcher
@@ -140,6 +151,8 @@ def _get_active_engine(kokoro):
     CFG-03: STATE['model'] is updated by POST /config; next synthesis call uses new engine.
     """
     global _piper_engine, _piper_loaded_path
+    global _hebrewpiper_engine, _hebrewpiper_loaded_key
+    global _lightblue_engine, _lightblue_loaded_key
     model = STATE.get("model", "kokoro")
     if model == "piper":
         piper_path = STATE.get("piper_model_path")
@@ -155,6 +168,35 @@ def _get_active_engine(kokoro):
             _piper_engine = PiperEngine(piper_path)
             _piper_loaded_path = piper_path
         return _piper_engine
+
+    elif model == "hebrewpiper":
+        host = STATE.get("hebrewpiper_host", "http://localhost:8000")
+        voice = STATE.get("hebrewpiper_voice", "female")
+        key = f"{host}|{voice}"
+        if _hebrewpiper_engine is None or _hebrewpiper_loaded_key != key:
+            from agenttalk.hebrewpiper_engine import HebrewPiperEngine
+            logging.info("Initialising HebrewPiperEngine host=%s voice=%s", host, voice)
+            _hebrewpiper_engine = HebrewPiperEngine(host=host, voice=voice)
+            _hebrewpiper_loaded_key = key
+        return _hebrewpiper_engine
+
+    elif model == "lightblue":
+        onnx_dir = STATE.get("lightblue_onnx_dir")
+        phonikud_path = STATE.get("lightblue_phonikud_path", "phonikud-1.0.onnx")
+        if not onnx_dir:
+            raise RuntimeError(
+                "Light-BlueTTS onnx_dir not configured. "
+                "Clone https://github.com/maxmelichov/Light-BlueTTS, download models, "
+                "then POST /config with lightblue_onnx_dir set to absolute path of onnx_models/."
+            )
+        key = f"{onnx_dir}|{phonikud_path}"
+        if _lightblue_engine is None or _lightblue_loaded_key != key:
+            from agenttalk.lightblue_engine import LightBlueTTSEngine
+            logging.info("Initialising LightBlueTTSEngine from %s", onnx_dir)
+            _lightblue_engine = LightBlueTTSEngine(onnx_dir=onnx_dir, phonikud_path=phonikud_path)
+            _lightblue_loaded_key = key
+        return _lightblue_engine
+
     # Default: Kokoro
     return kokoro
 

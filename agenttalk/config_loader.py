@@ -83,7 +83,7 @@ def save_config(state: dict) -> None:
     the tts_worker thread could call this concurrently.
 
     CFG-01: Writes to %APPDATA%/AgentTalk/config.json (no admin rights).
-    CFG-02: Persists all 7 settings fields.
+    CFG-02: Persists all 14 settings fields.
     """
     path = _config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -96,8 +96,13 @@ def save_config(state: dict) -> None:
         "muted":            state.get("muted", False),
         "pre_cue_path":     state.get("pre_cue_path"),
         "post_cue_path":    state.get("post_cue_path"),
-        "piper_model_path": state.get("piper_model_path"),
-        "speech_mode":      state.get("speech_mode", "auto"),
+        "piper_model_path":        state.get("piper_model_path"),
+        "speech_mode":             state.get("speech_mode", "auto"),
+        "hebrewpiper_host":        state.get("hebrewpiper_host", "http://localhost:8000"),
+        "hebrewpiper_voice":       state.get("hebrewpiper_voice", "female"),
+        "lightblue_onnx_dir":      state.get("lightblue_onnx_dir"),
+        "lightblue_phonikud_path": state.get("lightblue_phonikud_path"),
+        "lightblue_voice_path":    state.get("lightblue_voice_path"),
     }
 
     tmp = path.with_suffix(".json.tmp")
