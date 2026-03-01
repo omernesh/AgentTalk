@@ -19,22 +19,7 @@ import pystray
 from PIL import Image, ImageDraw
 
 from agenttalk.config_loader import _config_dir
-
-
-# All Kokoro voice identifiers (TRAY-04 — Voice submenu)
-KOKORO_VOICES = [
-    "af_heart",
-    "af_bella",
-    "af_nicole",
-    "af_sarah",
-    "af_sky",
-    "am_adam",
-    "am_michael",
-    "bf_emma",
-    "bf_isabella",
-    "bm_george",
-    "bm_lewis",
-]
+from agenttalk.constants import KOKORO_VOICES
 
 
 def _draw_waveform(

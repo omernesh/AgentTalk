@@ -9,6 +9,9 @@ import os
 import sys
 import logging
 import atexit
+import shutil
+import tempfile
+import wave
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -16,6 +19,9 @@ from typing import Literal
 
 import queue
 import time
+import numpy as np
+
+HEADLESS = os.getenv("AGENTTALK_HEADLESS", "").lower() in ("1","true","yes")
 
 import psutil
 import sounddevice as sd
@@ -24,11 +30,12 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-import pystray
+if not HEADLESS:
+    import pystray
 
 from agenttalk.tts_worker import TTS_QUEUE, STATE, start_tts_worker, _ducker, _CueItem
-from agenttalk.tray import build_tray_icon
 from agenttalk.config_loader import load_config, save_config, _config_dir
+from agenttalk.constants import KOKORO_VOICES
 from agenttalk.preprocessor import preprocess
 
 # ---------------------------------------------------------------------------
@@ -399,7 +406,6 @@ def health():
 def list_voices():
     """Returns all Kokoro voice IDs that can be passed to `POST /config` as `voice`.
     These are only used when `model` is `kokoro`. For Piper voice models see `GET /piper-voices`."""
-    from agenttalk.tray import KOKORO_VOICES
     return JSONResponse({"voices": KOKORO_VOICES})
 
 
@@ -458,6 +464,57 @@ def list_piper_voices():
         return JSONResponse({"voices": [], "dir": str(piper_dir)})
     voices = sorted(p.stem for p in piper_dir.glob("*.onnx"))
     return JSONResponse({"voices": voices, "dir": str(piper_dir)})
+
+
+
+
+class SpeakFileRequest(BaseModel):
+    text: str = Field(..., description="Text to speak.")
+    format: Literal["ogg", "wav"] = Field(default="ogg", description="Output audio format")
+    return_base64: bool = Field(default=False, description="Include base64 audio in response")
+
+
+def _write_wav(path, samples, rate):
+    pcm = (samples * 32767).astype('int16')
+    with wave.open(str(path), 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(rate)
+        wf.writeframes(pcm.tobytes())
+
+
+def _ffmpeg_available():
+    return shutil.which('ffmpeg') is not None
+
+
+def _render_audio_file(sentences: list[str], engine, voice: str, speed: float, volume: float, fmt: str):
+    if not sentences:
+        return None, None
+    samples_list = []
+    rate = None
+    for s in sentences:
+        samples, rate = engine.create(s, voice=voice, speed=speed, lang='en-us')
+        samples = np.clip(samples * volume, -1.0, 1.0)
+        samples_list.append(samples)
+    if rate is None:
+        return None, None
+    # add 150ms silence between sentences
+    silence = np.zeros(int(rate * 0.15), dtype=samples_list[0].dtype)
+    merged = samples_list[0]
+    for s in samples_list[1:]:
+        merged = np.concatenate([merged, silence, s])
+    tmpdir = Path(tempfile.gettempdir()) / 'agenttalk'
+    tmpdir.mkdir(parents=True, exist_ok=True)
+    wav_path = tmpdir / f"agenttalk_{int(time.time()*1000)}.wav"
+    _write_wav(wav_path, merged, rate)
+    if fmt == 'wav' or not _ffmpeg_available():
+        return wav_path, 'audio/wav'
+    ogg_path = wav_path.with_suffix('.ogg')
+    # convert to opus/ogg
+    os.system(f"ffmpeg -y -loglevel error -i '{wav_path}' -c:a libopus -b:a 48k '{ogg_path}'")
+    if ogg_path.exists():
+        return ogg_path, 'audio/ogg'
+    return wav_path, 'audio/wav'
 
 
 @app.post(
@@ -536,61 +593,36 @@ async def speak(req: SpeakRequest):
         try:
             TTS_QUEUE.put_nowait(_CueItem(post_cue))
         except queue.Full:
-            pass  # queue full — skip cue rather than block
+            pass
 
-    return JSONResponse(
-        {"status": "queued", "sentences": queued, "dropped": dropped},
-        status_code=202,
-    )
+    return JSONResponse({"status": "queued", "sentences": queued, "dropped": dropped})
 
 
 @app.post(
-    "/config",
-    tags=["Configuration"],
-    summary="Update runtime settings",
-    status_code=200,
+    "/speak_file",
+    tags=["TTS"],
+    summary="Generate an audio file for TTS output",
     responses={
-        200: {"description": "Settings updated and persisted to config.json."},
-        500: {"description": "Config file could not be saved (settings applied in-memory only)."},
+        200: {"description": "Audio file created."},
+        503: {"description": "Service not yet initialised — model still loading."},
     },
 )
-async def update_config(req: ConfigRequest):
-    """
-    Applies a partial runtime configuration update. All fields are optional — only
-    the provided fields are changed. Settings take effect immediately and are persisted
-    to `%APPDATA%\\AgentTalk\\config.json` so they survive service restarts.
-
-    **Engine switching:** set `model` to `"piper"` and provide `piper_model_path` pointing to a
-    downloaded `.onnx` file. The Piper engine is lazy-loaded on the next `/speak` request and
-    reloaded automatically if `piper_model_path` changes. Switch back by setting `model` to `"kokoro"`.
-
-    See `GET /piper-voices` for downloaded Piper models and `GET /voices` for Kokoro voice IDs.
-    """
-    updates = req.model_dump(exclude_none=True)
-    if not updates:
-        return JSONResponse({"status": "ok", "updated": []})
-    applied = []
-    ignored = []
-    for key, value in updates.items():
-        if key in STATE:
-            STATE[key] = value
-            applied.append(key)
-            logging.info("Config updated: %s = %s", key, value)
-        else:
-            ignored.append(key)
-            logging.warning("Config update ignored — unknown STATE key: %s", key)
-    response: dict = {"status": "ok", "updated": applied}
-    if ignored:
-        response["ignored"] = ignored
-    if not applied:
-        return JSONResponse(response)
-    try:
-        save_config(STATE)
-    except OSError:
-        logging.exception("save_config() failed — config not persisted.")
-        return JSONResponse({"status": "error", "reason": "config save failed"}, status_code=500)
-    return JSONResponse(response)
-
+def speak_file(req: SpeakFileRequest):
+    if not is_ready:
+        return JSONResponse({"status": "initializing"}, status_code=503)
+    sentences = preprocess(req.text)
+    if not sentences:
+        return JSONResponse({"status": "empty"}, status_code=200)
+    # Use same engine as /speak but without playback
+    engine = _kokoro_engine
+    path, mime = _render_audio_file(sentences, engine, STATE["voice"], STATE["speed"], STATE["volume"], req.format)
+    if path is None:
+        return JSONResponse({"status": "empty"}, status_code=200)
+    payload = {"status": "ok", "path": str(path), "mime": mime}
+    if req.return_base64:
+        import base64
+        payload["audio_base64"] = base64.b64encode(Path(path).read_bytes()).decode('ascii')
+    return JSONResponse(payload)
 
 @app.post(
     "/stop",
@@ -695,6 +727,11 @@ def main() -> None:
             except OSError:
                 logging.warning("save_config() failed after tray config change.", exc_info=True)
 
+        if HEADLESS:
+            _start_http_server()
+            logging.info("Service running (headless, no tray icon).")
+            while True:
+                time.sleep(1)
         # Build tray icon (does NOT run — just constructs the pystray.Icon object).
         # STATE is imported from tts_worker; tray menu reads muted, voice, model, and
         # piper_model_path from it. on_config_change persists all voice/model changes to disk.
@@ -705,7 +742,7 @@ def main() -> None:
             on_config_change=_on_config_change,
         )
 
-        def _setup(icon: pystray.Icon) -> None:
+        def _setup(icon) -> None:
             """
             Called by pystray once the Win32 message loop is running.
 

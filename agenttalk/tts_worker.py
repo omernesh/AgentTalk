@@ -19,6 +19,7 @@ CPU work and must never be called in the async FastAPI handler.
 """
 
 import logging
+import os
 import platform
 import queue
 import threading
@@ -48,7 +49,16 @@ else:
 
     AudioDucker = _NoOpDucker  # type: ignore[misc,assignment]
 
-from agenttalk.tray import create_image_idle, create_image_speaking
+HEADLESS = os.getenv("AGENTTALK_HEADLESS", "").lower() in ("1","true","yes")
+DISABLE_PLAYBACK = os.getenv("AGENTTALK_DISABLE_PLAYBACK", "").lower() in ("1","true","yes")
+
+if HEADLESS:
+    def create_image_idle(*args, **kwargs):
+        return None
+    def create_image_speaking(*args, **kwargs):
+        return None
+else:
+    from agenttalk.tray import create_image_idle, create_image_speaking
 
 
 # ---------------------------------------------------------------------------
@@ -286,8 +296,9 @@ def _tts_worker(kokoro_engine) -> None:
             # Resolve engine before ducking — avoids briefly silencing other apps
             # only to fail immediately after with a configuration error.
             engine = _get_active_engine(kokoro_engine)
-            _ducker.duck()
-            ducked = True
+            if not DISABLE_PLAYBACK and not HEADLESS:
+                _ducker.duck()
+                ducked = True
 
             logging.debug("TTS: synthesizing %r", sentence[:60])
             samples, rate = engine.create(
@@ -297,11 +308,13 @@ def _tts_worker(kokoro_engine) -> None:
                 lang="en-us",
             )
             scaled = np.clip(samples * STATE["volume"], -1.0, 1.0)
-            sd.play(scaled, samplerate=rate)
-            sd.wait()
+            if not DISABLE_PLAYBACK and not HEADLESS:
+                sd.play(scaled, samplerate=rate)
+                sd.wait()
 
-            _ducker.unduck()
-            ducked = False
+            if not DISABLE_PLAYBACK and not HEADLESS:
+                _ducker.unduck()
+                ducked = False
 
         except (RuntimeError, FileNotFoundError, ImportError) as config_err:
             # Engine misconfiguration — actionable message, notify user after threshold.
