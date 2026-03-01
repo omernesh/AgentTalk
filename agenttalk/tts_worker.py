@@ -191,6 +191,12 @@ def _get_active_engine(kokoro: object) -> object:
             )
         key = f"{onnx_dir}|{phonikud_path}"
         if _lightblue_engine is None or _lightblue_loaded_key != key:
+            import sys
+            from pathlib import Path
+            _lb_root = str(Path(onnx_dir).parent)
+            if _lb_root not in sys.path:
+                sys.path.insert(0, _lb_root)
+                logging.info("LightBlueTTS: added %s to sys.path", _lb_root)
             from agenttalk.lightblue_engine import LightBlueTTSEngine
             logging.info("Initialising LightBlueTTSEngine from %s", onnx_dir)
             _lightblue_engine = LightBlueTTSEngine(onnx_dir=onnx_dir, phonikud_path=phonikud_path)
