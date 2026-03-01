@@ -29,6 +29,7 @@ from agenttalk.tts_worker import TTS_QUEUE, STATE, start_tts_worker, _ducker, _C
 from agenttalk.tray import build_tray_icon
 from agenttalk.config_loader import load_config, save_config, _config_dir
 from agenttalk.preprocessor import preprocess
+from agenttalk.translator import is_hebrew, translate_to_hebrew
 
 # Hebrew voice namespace: maps human names to LightBlueTTS voice filenames
 HEBREW_VOICE_MAP = {"einav": "female1", "yuval": "male1"}
@@ -593,6 +594,11 @@ async def speak(req: SpeakRequest):
             {"status": "skipped", "reason": "no speakable sentences"},
             status_code=200,
         )
+
+    # Hebrew translation fallback: translate English→Hebrew when Hebrew engine is active
+    if STATE.get("model") in ("lightblue", "hebrewpiper"):
+        if not is_hebrew(req.text):
+            sentences = translate_to_hebrew(sentences, icon=_tray_icon)
 
     # Push pre-cue sentinel before sentences — fires once per response, not per sentence.
     pre_cue = STATE.get("pre_cue_path")
